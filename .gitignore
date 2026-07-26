@@ -1,0 +1,65 @@
+# 二进制输出
+/bin/
+/bin/*
+*.exe
+*.dll
+*.so
+*.dylib
+
+# 测试覆盖率
+*.out
+coverage.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# 依赖
+node_modules/
+vendor/
+
+# 构建产物
+dist/
+build/
+
+# 证书
+certs/*.key
+certs/*.csr
+!certs/.gitkeep
+
+# 调试
+debug
+debug.test
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
+
+# 临时文件
+tmp/
+temp/
+
+# 数据库
+*.db
+*.sqlite
+
+# Docker
+docker-compose.override.yml
+
+# Claude Code
+.claude/
+.codebuddy/
+
+# Playwright MCP
+.playwright-mcp/

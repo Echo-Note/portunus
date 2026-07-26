@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  GO_VERSION: '1.22'
+  NODE_VERSION: '20'
+
+jobs:
+  # ── 后端单元测试 ──
+  unit-test:
+    name: Unit Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Download deps
+        run: go mod download
+      - name: Run unit tests
+        run: go test -race -cover -coverprofile=coverage.out ./internal/...
+      - name: Check coverage
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Coverage: ${COVERAGE}%"
+          # 阈值 80%
+          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+            echo "::error::Coverage ${COVERAGE}% is below 80% threshold"
+            exit 1
+          fi
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  # ── 后端 lint ──
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+      - name: go vet
+        run: go vet ./...
+
+  # ── 集成测试（需要 PostgreSQL + Redis + Caddy）──
+  integration-test:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: portunus
+          POSTGRES_PASSWORD: portunus
+          POSTGRES_DB: portunus_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://portunus:portunus@localhost:5432/portunus_test?sslmode=disable
+      REDIS_URL: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Install migrate
+        run: |
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.1/migrate.linux-amd64.tar.gz | tar xz
+          sudo mv migrate /usr/local/bin/
+      - name: Run migrations
+        run: migrate -path db/migrations -database "$DATABASE_URL" up
+      - name: Run integration tests
+        run: go test -race -tags=integration -v ./test/integration/...
+
+  # ── 代码生成检查 ──
+  generate-check:
+    name: sqlc Generate Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Install sqlc
+        run: go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+      - name: Check generated code is up to date
+        run: |
+          sqlc generate -f sqlc.yaml
+          if ! git diff --exit-code internal/repository/generated/; then
+            echo "::error::Generated code is out of date. Run 'sqlc generate' and commit."
+            exit 1
+          fi
+
+  # ── 前端测试 ──
+  frontend-test:
+    name: Frontend Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install deps
+        run: cd web && npm ci
+      - name: Lint
+        run: cd web && npm run lint
+      - name: Test
+        run: cd web && npm test -- --passWithNoTests
+      - name: Build
+        run: cd web && npm run build
+
+  # ── 构建 ──
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [unit-test, lint, integration-test, frontend-test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Build backend
+        run: CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/portunus cmd/portunus/main.go
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: portunus-binary
+          path: bin/portunus

@@ -1,0 +1,43 @@
+# golangci-lint 配置
+# 文档: https://golangci-lint.run/usage/configuration/
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - errcheck      # 检查未处理的错误
+    - gosimple      # 简化代码建议
+    - govet         # Go 官方静态分析
+    - ineffassign   # 检测无效赋值
+    - staticcheck   # 高级静态分析
+    - unused        # 检查未使用的代码
+    - gofmt         # 检查 gofmt 格式
+    - goimports     # 检查 import 排序
+    - misspell      # 拼写检查
+    - revive        # 替代 golint，更灵活的规则
+    - exportloopref # 循环变量引用检查
+    - nilerr        # 检查返回 nil error
+    - prealloc      # 切片预分配建议
+    - bodyclose     # HTTP 响应体关闭检查
+    - sqlclosecheck # SQL rows/stmt 关闭检查
+    - noctx         # 检查缺少 context 的 HTTP 请求
+
+linters-settings:
+  goimports:
+    local-prefixes: github.com/nrgao/portunus
+  revive:
+    rules:
+      - name: exported
+        severity: warning
+        disabled: false
+        arguments:
+          - checkPrivateReceivers    # 检查私有接收者的导出方法
+          - sayRepetitiveInsteadOfStutters  # 避免重复命名
+  misspell:
+    locale: US
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0

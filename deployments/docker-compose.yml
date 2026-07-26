@@ -1,0 +1,69 @@
+# Portunus MVP 本地依赖服务（postgres + redis + caddy）
+# 完整拓扑参见 docs/caddy-system-architecture.md §5.1
+# 启动: docker compose -f deployments/docker-compose.yml up -d
+# 停止: docker compose -f deployments/docker-compose.yml down
+
+services:
+  # ── Caddy 数据面 ──
+  caddy:
+    image: caddy:2.7-alpine
+    container_name: portunus-caddy
+    ports:
+      - "80:80"      # HTTP
+      - "443:443"    # HTTPS
+      # Admin API (:2021) 仅容器内网络访问，不暴露到宿主机
+      # 如需调试: - "127.0.0.1:2021:2021"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - ../certs:/certs:ro
+    healthcheck:
+      test: ["CMD", "caddy", "version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── PostgreSQL 数据库 ──
+  postgres:
+    image: postgres:16-alpine
+    container_name: portunus-postgres
+    environment:
+      - POSTGRES_DB=portunus
+      - POSTGRES_USER=portunus
+      - POSTGRES_PASSWORD=portunus
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portunus -d portunus"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── Redis 缓存 ──
+  redis:
+    image: redis:7-alpine
+    container_name: portunus-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
+  pg_data:
+  redis_data:
