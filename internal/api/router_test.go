@@ -569,7 +569,7 @@ func (s *APITestSuite) ensureLoggedIn(t *testing.T) {
 }
 
 // ensureProject 确保有项目 ID。
-func (s *APITestSuite) ensureProject(t *testing.T) {
+func (s *APITestSuite) ensureProject(_ *testing.T) {
 	if s.projectID != "" {
 		return
 	}

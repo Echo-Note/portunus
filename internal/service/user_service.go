@@ -319,7 +319,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID uuid.UUID, input Up
 }
 
 // issueTokenPair 签发 JWT 令牌对。
-func (s *UserService) issueTokenPair(ctx context.Context, userID uuid.UUID) (*TokenPair, error) {
+func (s *UserService) issueTokenPair(_ context.Context, userID uuid.UUID) (*TokenPair, error) {
 	now := time.Now()
 	accessExpiry := now.Add(s.jwtCfg.AccessTokenTTL)
 	refreshExpiry := now.Add(s.jwtCfg.RefreshTokenTTL)
