@@ -260,17 +260,30 @@ jobs:
       - name: Create or update failure issue
         env:
           GH_TOKEN: ${{ github.token }}
+          RESULT_UNIT_TEST: ${{ needs.unit-test.result }}
+          RESULT_LINT: ${{ needs.lint.result }}
+          RESULT_GENERATE_CHECK: ${{ needs.generate-check.result }}
+          RESULT_INTEGRATION_TEST: ${{ needs.integration-test.result }}
+          RESULT_FRONTEND_TEST: ${{ needs.frontend-test.result }}
+          RESULT_BUILD: ${{ needs.build.result }}
         run: |
           set -euo pipefail
 
           # 收集失败 job 信息
           FAILED_JOBS=""
-          for job in unit-test lint generate-check integration-test frontend-test build; do
-            result="${{ needs.${job}.result }}"
+          check_job() {
+            local job_name="$1"
+            local result="$2"
             if [ "$result" = "failure" ]; then
-              FAILED_JOBS="${FAILED_JOBS}- ${job}\n"
+              FAILED_JOBS="${FAILED_JOBS}- ${job_name}\n"
             fi
-          done
+          }
+          check_job "unit-test"        "${RESULT_UNIT_TEST}"
+          check_job "lint"             "${RESULT_LINT}"
+          check_job "generate-check"   "${RESULT_GENERATE_CHECK}"
+          check_job "integration-test" "${RESULT_INTEGRATION_TEST}"
+          check_job "frontend-test"    "${RESULT_FRONTEND_TEST}"
+          check_job "build"            "${RESULT_BUILD}"
 
           WORKFLOW_NAME="${{ github.workflow }}"
           BRANCH="${{ github.ref_name }}"
