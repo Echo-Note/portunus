@@ -267,33 +267,61 @@ jobs:
           RESULT_FRONTEND_TEST: ${{ needs.frontend-test.result }}
           RESULT_BUILD: ${{ needs.build.result }}
         run: |
-          set -euo pipefail
+          set -eo pipefail
 
           # 收集失败 job 信息
           FAILED_JOBS=""
-          check_job() {
-            local job_name="$1"
-            local result="$2"
-            if [ "$result" = "failure" ]; then
-              FAILED_JOBS="${FAILED_JOBS}- ${job_name}\n"
+          append_if_failed() {
+            if [ "${2:-}" = "failure" ]; then
+              FAILED_JOBS="${FAILED_JOBS}- ${1}\n"
             fi
           }
-          check_job "unit-test"        "${RESULT_UNIT_TEST}"
-          check_job "lint"             "${RESULT_LINT}"
-          check_job "generate-check"   "${RESULT_GENERATE_CHECK}"
-          check_job "integration-test" "${RESULT_INTEGRATION_TEST}"
-          check_job "frontend-test"    "${RESULT_FRONTEND_TEST}"
-          check_job "build"            "${RESULT_BUILD}"
+          append_if_failed "unit-test"        "${RESULT_UNIT_TEST:-}"
+          append_if_failed "lint"             "${RESULT_LINT:-}"
+          append_if_failed "generate-check"   "${RESULT_GENERATE_CHECK:-}"
+          append_if_failed "integration-test" "${RESULT_INTEGRATION_TEST:-}"
+          append_if_failed "frontend-test"    "${RESULT_FRONTEND_TEST:-}"
+          append_if_failed "build"            "${RESULT_BUILD:-}"
 
-          WORKFLOW_NAME="${{ github.workflow }}"
           BRANCH="${{ github.ref_name }}"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           COMMIT_SHA="${{ github.sha }}"
           COMMIT_MSG="${{ github.event.head_commit.message }}"
           ACTOR="${{ github.actor }}"
+          LABEL="ci-failure"
+          ISSUE_TITLE="CI Failure: ${{ github.workflow }} on ${BRANCH}"
 
-          ISSUE_TITLE="CI Failure: ${WORKFLOW_NAME} on ${BRANCH}"
-          ISSUE_BODY="## CI 流水线失败
+          # 确保 label 存在
+          gh label create "${LABEL}" --color "d73a4a" --description "CI 流水线自动创建的失败追踪" 2>/dev/null || true
+
+          # 查找是否已有同分支的未关闭 failure issue
+          EXISTING_ISSUE=$(gh issue list \
+            --label "${LABEL}" \
+            --state open \
+            --search "${ISSUE_TITLE}" \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [ -n "${EXISTING_ISSUE}" ]; then
+            echo "Found existing issue #${EXISTING_ISSUE}, adding comment..."
+            gh issue comment "${EXISTING_ISSUE}" --body-file - <<EOF
+          ### ⚠️ 再次失败
+
+          | 项目 | 详情 |
+          |------|------|
+          | **提交** | \`${COMMIT_SHA:0:7}\` — ${COMMIT_MSG} |
+          | **触发者** | @${ACTOR} |
+          | **运行日志** | [查看详情](${RUN_URL}) |
+
+          失败的 Job: $(printf '%b' "${FAILED_JOBS}" | tr '\n' ' ')
+          EOF
+          else
+            echo "Creating new failure issue..."
+            gh issue create \
+              --title "${ISSUE_TITLE}" \
+              --label "${LABEL}" \
+              --body-file - <<EOF
+          ## CI 流水线失败
 
           | 项目 | 详情 |
           |------|------|
@@ -304,42 +332,10 @@ jobs:
 
           ### 失败的 Job
 
-          $(echo -e "${FAILED_JOBS}")
+          $(printf '%b' "${FAILED_JOBS}")
 
           > 🤖 此 Issue 由 CI 流水线自动创建。请查看运行日志定位问题。
-          "
-
-          LABEL="ci-failure"
-
-          # 确保 label 存在（忽略已存在的错误）
-          gh label create "${LABEL}" --color "d73a4a" --description "CI 流水线自动创建的失败追踪" 2>/dev/null || true
-
-          # 查找是否已有同分支的未关闭 failure issue
-          EXISTING_ISSUE=$(gh issue list \
-            --label "${LABEL}" \
-            --state open \
-            --search "CI Failure: ${WORKFLOW_NAME} on ${BRANCH}" \
-            --json number \
-            --jq '.[0].number // empty')
-
-          if [ -n "${EXISTING_ISSUE}" ]; then
-            echo "Found existing issue #${EXISTING_ISSUE}, adding comment..."
-            gh issue comment "${EXISTING_ISSUE}" \
-              --body "### ⚠️ 再次失败
-
-          | 项目 | 详情 |
-          |------|------|
-          | **提交** | \`${COMMIT_SHA:0:7}\` — ${COMMIT_MSG} |
-          | **触发者** | @${ACTOR} |
-          | **运行日志** | [查看详情](${RUN_URL}) |
-
-          失败的 Job: $(echo -e "${FAILED_JOBS}" | tr '\n' ' ')"
-          else
-            echo "Creating new failure issue..."
-            gh issue create \
-              --title "${ISSUE_TITLE}" \
-              --body "${ISSUE_BODY}" \
-              --label "${LABEL}"
+          EOF
           fi
 
   # ═══════════════════════════════════════════════════════════════
@@ -364,30 +360,32 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          WORKFLOW_NAME="${{ github.workflow }}"
+          set -eo pipefail
+
           BRANCH="${{ github.ref_name }}"
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          ISSUE_TITLE="CI Failure: ${{ github.workflow }} on ${BRANCH}"
 
           # 查找同分支的未关闭 failure issue
           ISSUES=$(gh issue list \
             --label "ci-failure" \
             --state open \
-            --search "CI Failure: ${WORKFLOW_NAME} on ${BRANCH}" \
+            --search "${ISSUE_TITLE}" \
             --json number \
             --jq '.[].number')
 
           if [ -n "${ISSUES}" ]; then
             for num in ${ISSUES}; do
               echo "Closing issue #${num} — CI has recovered."
-              gh issue comment "${num}" \
-                --body "### ✅ CI 已恢复
+              gh issue comment "${num}" --body-file - <<EOF
+          ### ✅ CI 已恢复
 
           最近的 CI 运行已成功通过。
           [查看运行详情](${RUN_URL})
 
-          此 Issue 将自动关闭。"
-              gh issue close "${num}" \
-                --reason "completed"
+          此 Issue 将自动关闭。
+          EOF
+              gh issue close "${num}" --reason "completed"
             done
           else
             echo "No open failure issues to close."
