@@ -270,7 +270,7 @@ jobs:
       (github.event_name == 'push') &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') &&
       contains(needs.*.result, 'failure')
-    timeout-minutes: 3
+    timeout-minutes: 5
     permissions:
       contents: read
       issues: write
@@ -302,6 +302,55 @@ jobs:
           append_if_failed "frontend-test"    "${RESULT_FRONTEND_TEST:-}"
           append_if_failed "build"            "${RESULT_BUILD:-}"
 
+          # 获取失败 Job 的日志摘要
+          FAILURE_LOGS=""
+          RUN_ID="${{ github.run_id }}"
+          REPO="${{ github.repository }}"
+          API_URL="https://api.github.com/repos/${REPO}/actions/runs/${RUN_ID}/jobs"
+
+          get_failure_logs() {
+            local job_name="$1"
+            local result="${2:-}"
+            if [ "${result}" != "failure" ]; then
+              return
+            fi
+
+            # 获取失败 job 的 ID
+            local job_id
+            job_id=$(gh api "${API_URL}" \
+              --jq ".jobs[] | select(.name == \"${job_name}\") | .id" 2>/dev/null || echo "")
+
+            if [ -z "${job_id}" ]; then
+              return
+            fi
+
+            # 获取 job 的步骤信息，找出失败的步骤
+            local failed_step
+            failed_step=$(gh api "repos/${REPO}/actions/jobs/${job_id}" \
+              --jq '.steps[] | select(.conclusion == "failure") | .name' 2>/dev/null | head -1 || echo "")
+
+            # 下载日志，提取包含 error/fail/panic 的关键行（最多 15 行）
+            local log_snippet
+            log_snippet=$(gh api "repos/${REPO}/actions/jobs/${job_id}/logs" 2>/dev/null | \
+              grep -iE '(error|Error|FAIL|panic|fatal)' | tail -15 || echo "(无法获取日志)")
+
+            if [ -n "${log_snippet}" ]; then
+              FAILURE_LOGS="${FAILURE_LOGS}
+          **${job_name}**${failed_step:+ (${failed_step})}:
+          \`\`\`
+          ${log_snippet}
+          \`\`\`
+          "
+            fi
+          }
+
+          get_failure_logs "Unit Test"        "${RESULT_UNIT_TEST:-}"
+          get_failure_logs "Lint"             "${RESULT_LINT:-}"
+          get_failure_logs "sqlc Generate Check" "${RESULT_GENERATE_CHECK:-}"
+          get_failure_logs "Integration Test" "${RESULT_INTEGRATION_TEST:-}"
+          get_failure_logs "Frontend Test"    "${RESULT_FRONTEND_TEST:-}"
+          get_failure_logs "Build"            "${RESULT_BUILD:-}"
+
           LABEL="ci-failure"
 
           # 确保 label 存在
@@ -315,6 +364,7 @@ jobs:
           export COMMIT_MSG="${{ github.event.head_commit.message }}"
           export ACTOR="${{ github.actor }}"
           export FAILED_JOBS
+          export FAILURE_LOGS
           ISSUE_TITLE="CI Failure: ${{ github.workflow }} on ${BRANCH}"
 
           # 查找是否已有同分支的未关闭 failure issue
@@ -327,6 +377,7 @@ jobs:
 
           if [ -n "${EXISTING_ISSUE}" ]; then
             echo "Found existing issue #${EXISTING_ISSUE}, adding comment..."
+            FAILED_JOBS_FMT=$(printf '%b' "${FAILED_JOBS}" | tr '\n' ' ')
             gh issue comment "${EXISTING_ISSUE}" --body-file - <<EOF
           ### ⚠️ 再次失败
 
@@ -336,7 +387,9 @@ jobs:
           | **触发者** | @${ACTOR} |
           | **运行日志** | [查看详情](${RUN_URL}) |
 
-          失败的 Job: $(printf '%b' "${FAILED_JOBS}" | tr '\n' ' ')
+          失败的 Job: ${FAILED_JOBS_FMT}
+
+          ${FAILURE_LOGS}
           EOF
           else
             echo "Creating new failure issue..."
