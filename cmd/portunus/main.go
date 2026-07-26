@@ -40,7 +40,11 @@ func main() {
 		slog.Error("数据库连接失败", "err", err)
 		os.Exit(1)
 	}
-	defer entClient.Close() //nolint:errcheck
+	defer func() {
+		if err := entClient.Close(); err != nil {
+			slog.Error("关闭数据库连接失败", "err", err)
+		}
+	}()
 
 	// ── 4. 初始化 Caddy 客户端（可选，开发环境可能没有 Caddy）──
 	// 注意：如果 Caddy 不可达，服务仍可启动，仅 Caddy 相关操作会失败

@@ -118,7 +118,9 @@ func (s *MemberService) AcceptInvitation(ctx context.Context, token string, user
 
 	// 检查是否过期
 	if time.Now().After(inv.ExpiresAt) {
-		inv.Update().SetStatus(invitation.StatusExpired).Exec(ctx) //nolint:errcheck
+		if err := inv.Update().SetStatus(invitation.StatusExpired).Exec(ctx); err != nil {
+			slog.WarnContext(ctx, "标记邀请过期失败", "invitation_id", inv.ID, "err", err)
+		}
 		return fmt.Errorf("%w: 邀请已过期", ErrValidation)
 	}
 

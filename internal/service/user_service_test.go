@@ -12,6 +12,7 @@ import (
 
 	"github.com/Echo-Note/portunus/ent/generated/user"
 	"github.com/Echo-Note/portunus/internal/config"
+	"github.com/Echo-Note/portunus/internal/testutil"
 )
 
 // setupUserService 创建测试用 UserService 实例。
@@ -28,19 +29,8 @@ func setupUserService(t *testing.T) (*UserService, context.Context) {
 	client, err := config.NewEntClient(ctx, cfg)
 	require.NoError(t, err, "数据库连接失败")
 
-	// 清理测试数据（按外键依赖顺序）
-	client.CaddyIDMapping.Delete().Exec(ctx)  //nolint:errcheck
-	client.Upstream.Delete().Exec(ctx)        //nolint:errcheck
-	client.ProxyConfig.Delete().Exec(ctx)     //nolint:errcheck
-	client.DomainShare.Delete().Exec(ctx)     //nolint:errcheck
-	client.Domain.Delete().Exec(ctx)          //nolint:errcheck
-	client.ProjectAuditLog.Delete().Exec(ctx) //nolint:errcheck
-	client.Invitation.Delete().Exec(ctx)      //nolint:errcheck
-	client.ProjectMember.Delete().Exec(ctx)   //nolint:errcheck
-	client.ApiToken.Delete().Exec(ctx)        //nolint:errcheck
-	client.ConfigSnapshot.Delete().Exec(ctx)  //nolint:errcheck
-	client.Project.Delete().Exec(ctx)         //nolint:errcheck
-	client.User.Delete().Exec(ctx)            //nolint:errcheck
+	// 清理测试数据（按外键依赖顺序删除）
+	testutil.CleanDB(t, client)
 
 	jwtCfg := config.JWTConfig{
 		AccessTokenTTL:  15 * time.Minute,
@@ -66,9 +56,7 @@ func setupUserService(t *testing.T) (*UserService, context.Context) {
 	svc, err := NewUserService(client, jwtCfg)
 	require.NoError(t, err)
 
-	t.Cleanup(func() {
-		client.Close()
-	})
+	t.Cleanup(func() { testutil.CloseClient(t, client) })
 
 	return svc, ctx
 }

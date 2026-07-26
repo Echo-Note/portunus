@@ -14,6 +14,7 @@ import (
 	"github.com/Echo-Note/portunus/ent/generated/domain"
 	"github.com/Echo-Note/portunus/ent/generated/project"
 	"github.com/Echo-Note/portunus/internal/config"
+	"github.com/Echo-Note/portunus/internal/testutil"
 )
 
 // setupDomainService 创建测试用 DomainService 实例。
@@ -30,18 +31,7 @@ func setupDomainService(t *testing.T) (*DomainService, *ProjectService, *UserSer
 	require.NoError(t, err)
 
 	// 清理
-	client.CaddyIDMapping.Delete().Exec(ctx)  //nolint:errcheck
-	client.Upstream.Delete().Exec(ctx)        //nolint:errcheck
-	client.ProxyConfig.Delete().Exec(ctx)     //nolint:errcheck
-	client.DomainShare.Delete().Exec(ctx)     //nolint:errcheck
-	client.Domain.Delete().Exec(ctx)          //nolint:errcheck
-	client.ProjectAuditLog.Delete().Exec(ctx) //nolint:errcheck
-	client.Invitation.Delete().Exec(ctx)      //nolint:errcheck
-	client.ProjectMember.Delete().Exec(ctx)   //nolint:errcheck
-	client.ApiToken.Delete().Exec(ctx)        //nolint:errcheck
-	client.ConfigSnapshot.Delete().Exec(ctx)  //nolint:errcheck
-	client.Project.Delete().Exec(ctx)         //nolint:errcheck
-	client.User.Delete().Exec(ctx)            //nolint:errcheck
+	testutil.CleanDB(t, client)
 
 	jwtCfg := config.JWTConfig{
 		AccessTokenTTL:  15 * time.Minute,
@@ -70,7 +60,7 @@ func setupDomainService(t *testing.T) (*DomainService, *ProjectService, *UserSer
 	caddyClient := NewNoopCaddyClient()
 	domainSvc := NewDomainService(client, sm, caddyClient)
 
-	t.Cleanup(func() { client.Close() })
+	t.Cleanup(func() { testutil.CloseClient(t, client) })
 	return domainSvc, projectSvc, userSvc, ctx
 }
 

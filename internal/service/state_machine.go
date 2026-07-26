@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -146,7 +147,13 @@ func (sm *StateMachine) ExecuteTransition(ctx context.Context, t *StateTransitio
 	if err != nil {
 		return fmt.Errorf("开启事务失败: %w", err)
 	}
-	defer tx.Rollback() //nolint:errcheck // 事务提交后 Rollback 是空操作
+	defer func() {
+		// 事务提交后 Rollback 是空操作，返回 sql.ErrTxDone；
+		// 仅在未提交且回滚失败时记录日志。
+		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			slog.ErrorContext(ctx, "回滚事务失败", "err", err)
+		}
+	}()
 
 	// 4. 使用乐观锁更新实体状态
 	tableName, ok := entityTableMap[t.EntityType]

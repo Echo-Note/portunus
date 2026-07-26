@@ -342,12 +342,16 @@ func (s *DomainService) DeleteDomain(ctx context.Context, domainID uuid.UUID) er
 	}
 
 	// 删除 Caddy ID 映射
-	s.client.CaddyIDMapping.DeleteOneID(d.CaddyID).Exec(ctx) //nolint:errcheck
+	if err := s.client.CaddyIDMapping.DeleteOneID(d.CaddyID).Exec(ctx); err != nil {
+		slog.WarnContext(ctx, "删除 Caddy ID 映射失败", "caddy_id", d.CaddyID, "err", err)
+	}
 
 	// 撤销该域名的所有共享
-	s.client.DomainShare.Update().
+	if err := s.client.DomainShare.Update().
 		SetStatus("revoked").
-		Exec(ctx) //nolint:errcheck
+		Exec(ctx); err != nil {
+		slog.WarnContext(ctx, "撤销域名共享失败", "domain_id", domainID, "err", err)
+	}
 
 	// 标记为已删除
 	return s.stateMachine.ExecuteTransition(ctx, &StateTransition{

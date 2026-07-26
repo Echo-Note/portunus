@@ -23,6 +23,7 @@ import (
 	"github.com/Echo-Note/portunus/internal/api/handler"
 	"github.com/Echo-Note/portunus/internal/config"
 	"github.com/Echo-Note/portunus/internal/service"
+	"github.com/Echo-Note/portunus/internal/testutil"
 )
 
 // APITestSuite 是 API 集成测试套件。
@@ -54,18 +55,7 @@ func (s *APITestSuite) SetupSuite() {
 	s.client = client
 
 	// 清理测试数据（按外键依赖顺序删除）
-	client.CaddyIDMapping.Delete().Exec(ctx)  //nolint:errcheck
-	client.Upstream.Delete().Exec(ctx)        //nolint:errcheck
-	client.ProxyConfig.Delete().Exec(ctx)     //nolint:errcheck
-	client.DomainShare.Delete().Exec(ctx)     //nolint:errcheck
-	client.Domain.Delete().Exec(ctx)          //nolint:errcheck
-	client.ProjectAuditLog.Delete().Exec(ctx) //nolint:errcheck
-	client.Invitation.Delete().Exec(ctx)      //nolint:errcheck
-	client.ProjectMember.Delete().Exec(ctx)   //nolint:errcheck
-	client.ApiToken.Delete().Exec(ctx)        //nolint:errcheck
-	client.ConfigSnapshot.Delete().Exec(ctx)  //nolint:errcheck
-	client.Project.Delete().Exec(ctx)         //nolint:errcheck
-	client.User.Delete().Exec(ctx)            //nolint:errcheck
+	testutil.CleanDB(s.T(), client)
 
 	// 初始化 JWT 配置
 	jwtCfg := config.JWTConfig{
@@ -133,9 +123,7 @@ func (s *APITestSuite) SetupSuite() {
 
 // TearDownSuite 在所有测试结束后执行一次。
 func (s *APITestSuite) TearDownSuite() {
-	if s.client != nil {
-		s.client.Close() //nolint:errcheck
-	}
+	testutil.CloseClient(s.T(), s.client)
 }
 
 // ctx 返回基础 context。
@@ -565,7 +553,9 @@ func (s *APITestSuite) ensureLoggedIn(t *testing.T) {
 
 	// 激活特定用户（通过邮箱查询）
 	ctx := s.ctx()
-	_ = s.client.User.Update().Where(user.EmailEQ(email)).SetStatus("active").Exec(ctx) //nolint:errcheck
+	if err := s.client.User.Update().Where(user.EmailEQ(email)).SetStatus("active").Exec(ctx); err != nil {
+		t.Logf("failed to activate user %s: %v", email, err)
+	}
 
 	// 登录
 	resp := s.doRequest("POST", "/api/v1/auth/login", `{"email":"`+email+`","password":"test123456"}`)

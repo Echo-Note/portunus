@@ -13,6 +13,7 @@ import (
 
 	"github.com/Echo-Note/portunus/internal/config"
 	"github.com/Echo-Note/portunus/internal/service"
+	"github.com/Echo-Note/portunus/internal/testutil"
 )
 
 // setupMiddlewareTest 创建测试用的 Gin 路由和 UserService。
@@ -53,7 +54,7 @@ func setupMiddlewareTest(t *testing.T) (*gin.Engine, *service.UserService) {
 	router.Use(RequestID())
 	router.Use(Logging())
 
-	t.Cleanup(func() { client.Close() })
+	t.Cleanup(func() { testutil.CloseClient(t, client) })
 	return router, userSvc
 }
 

@@ -13,6 +13,7 @@ import (
 	"github.com/Echo-Note/portunus/ent/generated/proxyconfig"
 	"github.com/Echo-Note/portunus/ent/generated/upstream"
 	"github.com/Echo-Note/portunus/internal/config"
+	"github.com/Echo-Note/portunus/internal/testutil"
 )
 
 // setupProxyService 创建测试用 ProxyService 实例。
@@ -29,18 +30,7 @@ func setupProxyService(t *testing.T) (*ProxyService, *DomainService, *ProjectSer
 	require.NoError(t, err)
 
 	// 清理所有表
-	client.CaddyIDMapping.Delete().Exec(ctx)  //nolint:errcheck
-	client.Upstream.Delete().Exec(ctx)        //nolint:errcheck
-	client.ProxyConfig.Delete().Exec(ctx)     //nolint:errcheck
-	client.DomainShare.Delete().Exec(ctx)     //nolint:errcheck
-	client.Domain.Delete().Exec(ctx)          //nolint:errcheck
-	client.ProjectAuditLog.Delete().Exec(ctx) //nolint:errcheck
-	client.Invitation.Delete().Exec(ctx)      //nolint:errcheck
-	client.ProjectMember.Delete().Exec(ctx)   //nolint:errcheck
-	client.ApiToken.Delete().Exec(ctx)        //nolint:errcheck
-	client.ConfigSnapshot.Delete().Exec(ctx)  //nolint:errcheck
-	client.Project.Delete().Exec(ctx)         //nolint:errcheck
-	client.User.Delete().Exec(ctx)            //nolint:errcheck
+	testutil.CleanDB(t, client)
 
 	jwtCfg := config.JWTConfig{
 		AccessTokenTTL:  15 * time.Minute,
@@ -70,7 +60,7 @@ func setupProxyService(t *testing.T) (*ProxyService, *DomainService, *ProjectSer
 	domainSvc := NewDomainService(client, sm, caddyClient)
 	proxySvc := NewProxyService(client, sm, caddyClient)
 
-	t.Cleanup(func() { client.Close() })
+	t.Cleanup(func() { testutil.CloseClient(t, client) })
 	return proxySvc, domainSvc, projectSvc, userSvc, ctx
 }
 

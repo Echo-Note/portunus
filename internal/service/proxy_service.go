@@ -96,12 +96,14 @@ func (s *ProxyService) CreateProxyConfig(ctx context.Context, input CreateProxyC
 	}
 
 	// 创建 Caddy ID 映射
-	s.client.CaddyIDMapping.Create().
+	if _, err := s.client.CaddyIDMapping.Create().
 		SetID(caddyProxyID).
 		SetProjectID(d.ProjectID).
 		SetResourceType("proxy_config").
 		SetResourceID(pc.ID).
-		Save(ctx) //nolint:errcheck
+		Save(ctx); err != nil {
+		slog.WarnContext(ctx, "创建 Caddy ID 映射失败", "caddy_proxy_id", caddyProxyID, "err", err)
+	}
 
 	slog.InfoContext(ctx, "代理配置创建成功",
 		"proxy_config_id", pc.ID,

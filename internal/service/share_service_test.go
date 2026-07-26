@@ -12,6 +12,7 @@ import (
 
 	"github.com/Echo-Note/portunus/ent/generated/domainshare"
 	"github.com/Echo-Note/portunus/internal/config"
+	"github.com/Echo-Note/portunus/internal/testutil"
 )
 
 // setupShareService 创建测试用 ShareService 实例。
@@ -28,18 +29,7 @@ func setupShareService(t *testing.T) (*ShareService, *DomainService, *ProjectSer
 	require.NoError(t, err)
 
 	// 清理
-	client.CaddyIDMapping.Delete().Exec(ctx)  //nolint:errcheck
-	client.Upstream.Delete().Exec(ctx)        //nolint:errcheck
-	client.ProxyConfig.Delete().Exec(ctx)     //nolint:errcheck
-	client.DomainShare.Delete().Exec(ctx)     //nolint:errcheck
-	client.Domain.Delete().Exec(ctx)          //nolint:errcheck
-	client.ProjectAuditLog.Delete().Exec(ctx) //nolint:errcheck
-	client.Invitation.Delete().Exec(ctx)      //nolint:errcheck
-	client.ProjectMember.Delete().Exec(ctx)   //nolint:errcheck
-	client.ApiToken.Delete().Exec(ctx)        //nolint:errcheck
-	client.ConfigSnapshot.Delete().Exec(ctx)  //nolint:errcheck
-	client.Project.Delete().Exec(ctx)         //nolint:errcheck
-	client.User.Delete().Exec(ctx)            //nolint:errcheck
+	testutil.CleanDB(t, client)
 
 	jwtCfg := config.JWTConfig{
 		AccessTokenTTL:  15 * time.Minute,
@@ -69,7 +59,7 @@ func setupShareService(t *testing.T) (*ShareService, *DomainService, *ProjectSer
 	domainSvc := NewDomainService(client, sm, caddyClient)
 	shareSvc := NewShareService(client, sm)
 
-	t.Cleanup(func() { client.Close() })
+	t.Cleanup(func() { testutil.CloseClient(t, client) })
 	return shareSvc, domainSvc, projectSvc, userSvc, ctx
 }
 

@@ -13,6 +13,7 @@ import (
 	"github.com/Echo-Note/portunus/ent/generated/project"
 	"github.com/Echo-Note/portunus/ent/generated/user"
 	"github.com/Echo-Note/portunus/internal/config"
+	"github.com/Echo-Note/portunus/internal/testutil"
 )
 
 // setupProjectService 创建测试用 ProjectService 实例。
@@ -29,18 +30,7 @@ func setupProjectService(t *testing.T) (*ProjectService, *UserService, context.C
 	require.NoError(t, err)
 
 	// 清理
-	client.CaddyIDMapping.Delete().Exec(ctx)  //nolint:errcheck
-	client.Upstream.Delete().Exec(ctx)        //nolint:errcheck
-	client.ProxyConfig.Delete().Exec(ctx)     //nolint:errcheck
-	client.DomainShare.Delete().Exec(ctx)     //nolint:errcheck
-	client.Domain.Delete().Exec(ctx)          //nolint:errcheck
-	client.ProjectAuditLog.Delete().Exec(ctx) //nolint:errcheck
-	client.Invitation.Delete().Exec(ctx)      //nolint:errcheck
-	client.ProjectMember.Delete().Exec(ctx)   //nolint:errcheck
-	client.ApiToken.Delete().Exec(ctx)        //nolint:errcheck
-	client.ConfigSnapshot.Delete().Exec(ctx)  //nolint:errcheck
-	client.Project.Delete().Exec(ctx)         //nolint:errcheck
-	client.User.Delete().Exec(ctx)            //nolint:errcheck
+	testutil.CleanDB(t, client)
 
 	jwtCfg := config.JWTConfig{
 		AccessTokenTTL:  15 * time.Minute,
@@ -67,7 +57,7 @@ func setupProjectService(t *testing.T) (*ProjectService, *UserService, context.C
 	sm := NewStateMachine(client)
 	projectSvc := NewProjectService(client, sm)
 
-	t.Cleanup(func() { client.Close() })
+	t.Cleanup(func() { testutil.CloseClient(t, client) })
 	return projectSvc, userSvc, ctx
 }
 

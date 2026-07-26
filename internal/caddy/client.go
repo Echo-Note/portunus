@@ -175,7 +175,9 @@ func (c *Client) doRequest(ctx context.Context, method, url string, body io.Read
 
 		// 如果 body 是 bytes.Reader 或 strings.Reader，需要重置
 		if seeker, ok := body.(io.Seeker); ok {
-			seeker.Seek(0, io.SeekStart) //nolint:errcheck // 重置读取位置
+			if _, err := seeker.Seek(0, io.SeekStart); err != nil {
+				return nil, "", fmt.Errorf("caddy client: 重置请求体失败: %w", err)
+			}
 		}
 
 		resp, err := c.httpClient.Do(req)
@@ -185,7 +187,9 @@ func (c *Client) doRequest(ctx context.Context, method, url string, body io.Read
 		}
 
 		respBody, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		if cerr := resp.Body.Close(); cerr != nil {
+			slog.WarnContext(ctx, "caddy client: 关闭响应体失败", "err", cerr)
+		}
 		if err != nil {
 			lastErr = fmt.Errorf("caddy client: 读取响应失败: %w", err)
 			continue
