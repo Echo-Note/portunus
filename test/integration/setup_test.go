@@ -149,19 +149,19 @@ func TestMain(m *testing.M) {
 // cleanAllTables 按外键依赖顺序清空所有表。
 // 与 testutil.CleanDB 逻辑一致，但不依赖 *testing.T（用于 TestMain 阶段）。
 func cleanAllTables(ctx context.Context, client *generated.Client) {
-	// 按外键依赖顺序删除
-	client.CaddyIDMapping.Delete().Exec(ctx)
-	client.Upstream.Delete().Exec(ctx)
-	client.ProxyConfig.Delete().Exec(ctx)
-	client.DomainShare.Delete().Exec(ctx)
-	client.Domain.Delete().Exec(ctx)
-	client.ProjectAuditLog.Delete().Exec(ctx)
-	client.Invitation.Delete().Exec(ctx)
-	client.ProjectMember.Delete().Exec(ctx)
-	client.ApiToken.Delete().Exec(ctx)
-	client.ConfigSnapshot.Delete().Exec(ctx)
-	client.Project.Delete().Exec(ctx)
-	client.User.Delete().Exec(ctx)
+	// 按外键依赖顺序删除，忽略错误（表可能已在迁移前为空）
+	_, _ = client.CaddyIDMapping.Delete().Exec(ctx)
+	_, _ = client.Upstream.Delete().Exec(ctx)
+	_, _ = client.ProxyConfig.Delete().Exec(ctx)
+	_, _ = client.DomainShare.Delete().Exec(ctx)
+	_, _ = client.Domain.Delete().Exec(ctx)
+	_, _ = client.ProjectAuditLog.Delete().Exec(ctx)
+	_, _ = client.Invitation.Delete().Exec(ctx)
+	_, _ = client.ProjectMember.Delete().Exec(ctx)
+	_, _ = client.ApiToken.Delete().Exec(ctx)
+	_, _ = client.ConfigSnapshot.Delete().Exec(ctx)
+	_, _ = client.Project.Delete().Exec(ctx)
+	_, _ = client.User.Delete().Exec(ctx)
 }
 
 // getEnvOrDefault 获取环境变量或返回默认值。
