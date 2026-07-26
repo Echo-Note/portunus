@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/nrgao/portunus/ent/generated"
-	"github.com/nrgao/portunus/ent/generated/proxyconfig"
-	"github.com/nrgao/portunus/ent/generated/upstream"
+	"github.com/Echo-Note/portunus/ent/generated"
+	"github.com/Echo-Note/portunus/ent/generated/proxyconfig"
+	"github.com/Echo-Note/portunus/ent/generated/upstream"
 )
 
 // ProxyService 处理反向代理配置和上游管理相关的业务逻辑。

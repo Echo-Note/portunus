@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/nrgao/portunus/internal/service"
+	"github.com/Echo-Note/portunus/internal/service"
 )
 
 // RBAC 统一权限矩阵，定义各角色对各资源的操作权限。

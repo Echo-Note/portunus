@@ -9,7 +9,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 
-	"github.com/nrgao/portunus/ent/generated"
+	"github.com/Echo-Note/portunus/ent/generated"
 
 	// 导入 PostgreSQL 驱动
 	_ "github.com/lib/pq"

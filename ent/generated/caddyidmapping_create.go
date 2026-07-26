@@ -12,9 +12,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/Echo-Note/portunus/ent/generated/caddyidmapping"
+	"github.com/Echo-Note/portunus/ent/generated/project"
 	"github.com/google/uuid"
-	"github.com/nrgao/portunus/ent/generated/caddyidmapping"
-	"github.com/nrgao/portunus/ent/generated/project"
 )
 
 // CaddyIDMappingCreate is the builder for creating a CaddyIDMapping entity.

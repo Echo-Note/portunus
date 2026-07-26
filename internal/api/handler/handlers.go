@@ -11,9 +11,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/nrgao/portunus/internal/api/dto"
-	"github.com/nrgao/portunus/internal/api/middleware"
-	"github.com/nrgao/portunus/internal/service"
+	"github.com/Echo-Note/portunus/internal/api/dto"
+	"github.com/Echo-Note/portunus/internal/api/middleware"
+	"github.com/Echo-Note/portunus/internal/service"
 )
 
 // respond 发送统一格式的成功响应。

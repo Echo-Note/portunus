@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/nrgao/portunus/internal/caddy"
+	"github.com/Echo-Note/portunus/internal/caddy"
 )
 
 // CaddyClient 定义 Caddy Admin API 客户端接口。

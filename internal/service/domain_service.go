@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/nrgao/portunus/ent/generated"
-	"github.com/nrgao/portunus/ent/generated/domain"
-	"github.com/nrgao/portunus/ent/generated/project"
+	"github.com/Echo-Note/portunus/ent/generated"
+	"github.com/Echo-Note/portunus/ent/generated/domain"
+	"github.com/Echo-Note/portunus/ent/generated/project"
 )
 
 // DomainService 处理域名相关的业务逻辑。

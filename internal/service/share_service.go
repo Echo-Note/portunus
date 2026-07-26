@@ -8,8 +8,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/nrgao/portunus/ent/generated"
-	"github.com/nrgao/portunus/ent/generated/domainshare"
+	"github.com/Echo-Note/portunus/ent/generated"
+	"github.com/Echo-Note/portunus/ent/generated/domainshare"
 )
 
 // ShareService 处理域名共享相关的业务逻辑。

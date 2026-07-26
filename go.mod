@@ -1,4 +1,4 @@
-module github.com/nrgao/portunus
+module github.com/Echo-Note/portunus
 
 go 1.26.4
 

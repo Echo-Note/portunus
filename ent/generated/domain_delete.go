@@ -8,8 +8,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/nrgao/portunus/ent/generated/domain"
-	"github.com/nrgao/portunus/ent/generated/predicate"
+	"github.com/Echo-Note/portunus/ent/generated/domain"
+	"github.com/Echo-Note/portunus/ent/generated/predicate"
 )
 
 // DomainDelete is the builder for deleting a Domain entity.

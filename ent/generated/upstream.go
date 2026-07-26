@@ -9,9 +9,9 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/Echo-Note/portunus/ent/generated/proxyconfig"
+	"github.com/Echo-Note/portunus/ent/generated/upstream"
 	"github.com/google/uuid"
-	"github.com/nrgao/portunus/ent/generated/proxyconfig"
-	"github.com/nrgao/portunus/ent/generated/upstream"
 )
 
 // Upstream is the model entity for the Upstream schema.

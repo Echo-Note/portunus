@@ -10,10 +10,10 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/Echo-Note/portunus/ent/generated/apitoken"
+	"github.com/Echo-Note/portunus/ent/generated/project"
+	"github.com/Echo-Note/portunus/ent/generated/user"
 	"github.com/google/uuid"
-	"github.com/nrgao/portunus/ent/generated/apitoken"
-	"github.com/nrgao/portunus/ent/generated/project"
-	"github.com/nrgao/portunus/ent/generated/user"
 )
 
 // ApiToken is the model entity for the ApiToken schema.

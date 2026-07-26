@@ -15,10 +15,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/nrgao/portunus/internal/api"
-	"github.com/nrgao/portunus/internal/api/handler"
-	"github.com/nrgao/portunus/internal/config"
-	"github.com/nrgao/portunus/internal/service"
+	"github.com/Echo-Note/portunus/internal/api"
+	"github.com/Echo-Note/portunus/internal/api/handler"
+	"github.com/Echo-Note/portunus/internal/config"
+	"github.com/Echo-Note/portunus/internal/service"
 )
 
 func main() {

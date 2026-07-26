@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/Echo-Note/portunus/ent/generated/user"
 	"github.com/google/uuid"
-	"github.com/nrgao/portunus/ent/generated/user"
 )
 
 // User is the model entity for the User schema.

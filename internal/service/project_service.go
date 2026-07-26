@@ -7,10 +7,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/nrgao/portunus/ent/generated"
-	"github.com/nrgao/portunus/ent/generated/domain"
-	"github.com/nrgao/portunus/ent/generated/project"
-	"github.com/nrgao/portunus/ent/generated/projectmember"
+	"github.com/Echo-Note/portunus/ent/generated"
+	"github.com/Echo-Note/portunus/ent/generated/domain"
+	"github.com/Echo-Note/portunus/ent/generated/project"
+	"github.com/Echo-Note/portunus/ent/generated/projectmember"
 )
 
 // ProjectService 处理项目相关的业务逻辑。

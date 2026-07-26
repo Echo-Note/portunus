@@ -8,11 +8,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/nrgao/portunus/ent/generated"
-	"github.com/nrgao/portunus/ent/generated/invitation"
-	"github.com/nrgao/portunus/ent/generated/project"
-	"github.com/nrgao/portunus/ent/generated/projectmember"
-	"github.com/nrgao/portunus/ent/generated/user"
+	"github.com/Echo-Note/portunus/ent/generated"
+	"github.com/Echo-Note/portunus/ent/generated/invitation"
+	"github.com/Echo-Note/portunus/ent/generated/project"
+	"github.com/Echo-Note/portunus/ent/generated/projectmember"
+	"github.com/Echo-Note/portunus/ent/generated/user"
 )
 
 // MemberService 处理项目成员和邀请相关的业务逻辑。

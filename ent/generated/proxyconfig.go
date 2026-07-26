@@ -9,9 +9,9 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/Echo-Note/portunus/ent/generated/domain"
+	"github.com/Echo-Note/portunus/ent/generated/proxyconfig"
 	"github.com/google/uuid"
-	"github.com/nrgao/portunus/ent/generated/domain"
-	"github.com/nrgao/portunus/ent/generated/proxyconfig"
 )
 
 // ProxyConfig is the model entity for the ProxyConfig schema.

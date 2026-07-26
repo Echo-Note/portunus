@@ -5,12 +5,12 @@ package enttest
 import (
 	"context"
 
-	"github.com/nrgao/portunus/ent/generated"
+	"github.com/Echo-Note/portunus/ent/generated"
 	// required by schema hooks.
-	_ "github.com/nrgao/portunus/ent/generated/runtime"
+	_ "github.com/Echo-Note/portunus/ent/generated/runtime"
 
 	"entgo.io/ent/dialect/sql/schema"
-	"github.com/nrgao/portunus/ent/generated/migrate"
+	"github.com/Echo-Note/portunus/ent/generated/migrate"
 )
 
 type (

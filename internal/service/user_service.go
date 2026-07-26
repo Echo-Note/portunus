@@ -16,9 +16,9 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/argon2"
 
-	"github.com/nrgao/portunus/ent/generated"
-	"github.com/nrgao/portunus/ent/generated/user"
-	"github.com/nrgao/portunus/internal/config"
+	"github.com/Echo-Note/portunus/ent/generated"
+	"github.com/Echo-Note/portunus/ent/generated/user"
+	"github.com/Echo-Note/portunus/internal/config"
 )
 
 // UserService 处理用户相关的业务逻辑。

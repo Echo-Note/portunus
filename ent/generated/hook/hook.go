@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/nrgao/portunus/ent/generated"
+	"github.com/Echo-Note/portunus/ent/generated"
 )
 
 // The ApiTokenFunc type is an adapter to allow the use of ordinary

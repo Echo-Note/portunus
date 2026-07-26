@@ -13,11 +13,11 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/Echo-Note/portunus/ent/generated/domain"
+	"github.com/Echo-Note/portunus/ent/generated/predicate"
+	"github.com/Echo-Note/portunus/ent/generated/proxyconfig"
+	"github.com/Echo-Note/portunus/ent/generated/upstream"
 	"github.com/google/uuid"
-	"github.com/nrgao/portunus/ent/generated/domain"
-	"github.com/nrgao/portunus/ent/generated/predicate"
-	"github.com/nrgao/portunus/ent/generated/proxyconfig"
-	"github.com/nrgao/portunus/ent/generated/upstream"
 )
 
 // ProxyConfigQuery is the builder for querying ProxyConfig entities.

@@ -14,7 +14,7 @@ func main() {
 	err := entc.Generate("./ent/schema",
 		&gen.Config{
 			Target:  "./ent/generated",
-			Package: "github.com/nrgao/portunus/ent/generated",
+			Package: "github.com/Echo-Note/portunus/ent/generated",
 			Features: []gen.Feature{
 				gen.FeatureExecQuery,  // 支持原生 SQL
 				gen.FeatureUpsert,    // 支持 UPSERT

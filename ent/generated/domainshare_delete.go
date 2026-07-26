@@ -8,8 +8,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/nrgao/portunus/ent/generated/domainshare"
-	"github.com/nrgao/portunus/ent/generated/predicate"
+	"github.com/Echo-Note/portunus/ent/generated/domainshare"
+	"github.com/Echo-Note/portunus/ent/generated/predicate"
 )
 
 // DomainShareDelete is the builder for deleting a DomainShare entity.

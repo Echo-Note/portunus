@@ -12,11 +12,11 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/Echo-Note/portunus/ent/generated/configsnapshot"
+	"github.com/Echo-Note/portunus/ent/generated/predicate"
+	"github.com/Echo-Note/portunus/ent/generated/project"
+	"github.com/Echo-Note/portunus/ent/generated/user"
 	"github.com/google/uuid"
-	"github.com/nrgao/portunus/ent/generated/configsnapshot"
-	"github.com/nrgao/portunus/ent/generated/predicate"
-	"github.com/nrgao/portunus/ent/generated/project"
-	"github.com/nrgao/portunus/ent/generated/user"
 )
 
 // ConfigSnapshotQuery is the builder for querying ConfigSnapshot entities.

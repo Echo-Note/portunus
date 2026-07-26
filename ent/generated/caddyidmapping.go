@@ -9,9 +9,9 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/Echo-Note/portunus/ent/generated/caddyidmapping"
+	"github.com/Echo-Note/portunus/ent/generated/project"
 	"github.com/google/uuid"
-	"github.com/nrgao/portunus/ent/generated/caddyidmapping"
-	"github.com/nrgao/portunus/ent/generated/project"
 )
 
 // CaddyIDMapping is the model entity for the CaddyIDMapping schema.

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/nrgao/portunus/ent/generated"
+	"github.com/Echo-Note/portunus/ent/generated"
 )
 
 // 实体类型到表名的白名单映射（防止 SQL 注入）。

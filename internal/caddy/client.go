@@ -16,7 +16,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/nrgao/portunus/internal/config"
+	"github.com/Echo-Note/portunus/internal/config"
 )
 
 // Client Caddy Admin API 客户端，封装 HTTP 调用和 mTLS 认证。

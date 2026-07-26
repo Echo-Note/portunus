@@ -9,11 +9,11 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/Echo-Note/portunus/ent/generated/domain"
+	"github.com/Echo-Note/portunus/ent/generated/domainshare"
+	"github.com/Echo-Note/portunus/ent/generated/project"
+	"github.com/Echo-Note/portunus/ent/generated/user"
 	"github.com/google/uuid"
-	"github.com/nrgao/portunus/ent/generated/domain"
-	"github.com/nrgao/portunus/ent/generated/domainshare"
-	"github.com/nrgao/portunus/ent/generated/project"
-	"github.com/nrgao/portunus/ent/generated/user"
 )
 
 // DomainShare is the model entity for the DomainShare schema.
