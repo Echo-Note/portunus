@@ -1,0 +1,25 @@
+name: 'Backend Test Prep'
+description: 'Setup Go, generate JWT keys, and run database schema migration'
+inputs:
+  go-version:
+    description: 'Go version to use'
+    required: true
+    default: '1.26'
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34  # v5.3.0
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: true
+
+    - name: Generate JWT test keys
+      shell: bash
+      run: |
+        mkdir -p certs
+        openssl genrsa -out certs/jwt-private.pem 2048
+        openssl rsa -in certs/jwt-private.pem -pubout -out certs/jwt-public.pem
+
+    - name: Create database schema
+      shell: bash
+      run: go run -mod=mod .github/scripts/migrate_schema.go
