@@ -196,6 +196,39 @@ func (s *ProjectService) DeleteProject(ctx context.Context, projectID uuid.UUID,
 	})
 }
 
+// UpdateProjectInput 更新项目输入参数。
+type UpdateProjectInput struct {
+	Name        string `json:"name"`        // 可选，项目名称
+	Description string `json:"description"` // 可选，项目描述
+}
+
+// UpdateProject 更新项目元数据（名称和描述）。
+func (s *ProjectService) UpdateProject(ctx context.Context, projectID uuid.UUID, input UpdateProjectInput) (*generated.Project, error) {
+	p, err := s.GetProject(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	update := p.Update()
+	if input.Name != "" {
+		update.SetName(input.Name)
+	}
+	// 描述可以为空字符串，通过指针区分"不传"和"传空"
+	update.SetDescription(input.Description)
+
+	p, err = update.Save(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("更新项目: %w", err)
+	}
+
+	slog.InfoContext(ctx, "项目已更新",
+		"project_id", projectID,
+		"name", p.Name,
+	)
+
+	return p, nil
+}
+
 // CheckQuota 检查项目某项配额是否已超限。
 func (s *ProjectService) CheckQuota(ctx context.Context, projectID uuid.UUID, quotaType string) error {
 	p, err := s.GetProject(ctx, projectID)

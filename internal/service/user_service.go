@@ -275,6 +275,49 @@ func (s *UserService) ActivateUserByEmail(ctx context.Context, email string) err
 	return err
 }
 
+// UpdateUserInput 更新用户信息输入参数。
+type UpdateUserInput struct {
+	Email string `json:"email"` // 可选，新邮箱
+}
+
+// UpdateUser 更新当前用户信息。
+func (s *UserService) UpdateUser(ctx context.Context, userID uuid.UUID, input UpdateUserInput) (*generated.User, error) {
+	u, err := s.client.User.Get(ctx, userID)
+	if err != nil {
+		if generated.IsNotFound(err) {
+			return nil, fmt.Errorf("%w: 用户不存在", ErrNotFound)
+		}
+		return nil, fmt.Errorf("查询用户: %w", err)
+	}
+
+	update := u.Update()
+	if input.Email != "" && input.Email != u.Email {
+		// 检查新邮箱是否已被注册
+		exists, err := s.client.User.Query().
+			Where(user.EmailEQ(input.Email)).
+			Exist(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("查询邮箱: %w", err)
+		}
+		if exists {
+			return nil, fmt.Errorf("%w: 邮箱 %s 已被注册", ErrDuplicate, input.Email)
+		}
+		update.SetEmail(input.Email)
+	}
+
+	u, err = update.Save(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("更新用户: %w", err)
+	}
+
+	slog.InfoContext(ctx, "用户信息已更新",
+		"user_id", userID,
+		"email", u.Email,
+	)
+
+	return u, nil
+}
+
 // issueTokenPair 签发 JWT 令牌对。
 func (s *UserService) issueTokenPair(ctx context.Context, userID uuid.UUID) (*TokenPair, error) {
 	now := time.Now()

@@ -142,6 +142,31 @@ func (s *ShareService) ListSharesByTargetProject(ctx context.Context, projectID 
 	return shares, nil
 }
 
+// AcceptShare 接受域名共享。
+// 将 pending 状态的共享转换为 active。
+func (s *ShareService) AcceptShare(ctx context.Context, shareID uuid.UUID) error {
+	share, err := s.client.DomainShare.Get(ctx, shareID)
+	if err != nil {
+		if generated.IsNotFound(err) {
+			return fmt.Errorf("%w: 共享不存在", ErrNotFound)
+		}
+		return fmt.Errorf("查询共享: %w", err)
+	}
+
+	if share.Status != domainshare.StatusPending {
+		return fmt.Errorf("%w: 共享状态为 %s，无法接受", ErrInvalidTransition, share.Status)
+	}
+
+	return s.stateMachine.ExecuteTransition(ctx, &StateTransition{
+		EntityType: "share",
+		EntityID:   shareID.String(),
+		FromState:  string(share.Status),
+		ToState:    string(domainshare.StatusActive),
+		Trigger:    "user_action",
+		Reason:     "接受域名共享",
+	})
+}
+
 // toPermission 将字符串转换为 domainshare.Permission 枚举。
 func toPermission(perm string) (domainshare.Permission, error) {
 	switch perm {

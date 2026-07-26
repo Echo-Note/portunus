@@ -240,6 +240,102 @@ func (h *ProjectHandler) List(c *gin.Context) {
 	respond(c, http.StatusOK, dto.ProjectListResponse{Items: items, Total: len(items)})
 }
 
+// Update 更新项目元数据。PATCH /api/v1/projects/:projectID
+func (h *ProjectHandler) Update(c *gin.Context) {
+	projectID, err := uuid.Parse(c.Param("projectID"))
+	if err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的项目 ID")
+		return
+	}
+
+	var req dto.UpdateProjectRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "参数校验失败")
+		return
+	}
+
+	p, err := h.projectSvc.UpdateProject(c.Request.Context(), projectID, service.UpdateProjectInput{
+		Name:        req.Name,
+		Description: req.Description,
+	})
+	if err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	respond(c, http.StatusOK, dto.ProjectResponse{
+		ID:          p.ID,
+		ProjectID:   p.ProjectID,
+		Name:        p.Name,
+		Description: p.Description,
+		Status:      string(p.Status),
+		Plan:        string(p.Plan),
+		Environment: string(p.Environment),
+		MaxDomains:  p.MaxDomains,
+		MaxMembers:  p.MaxMembers,
+		CreatedAt:   p.CreatedAt,
+		UpdatedAt:   p.UpdatedAt,
+	})
+}
+
+// Delete 删除项目。DELETE /api/v1/projects/:projectID
+func (h *ProjectHandler) Delete(c *gin.Context) {
+	projectID, err := uuid.Parse(c.Param("projectID"))
+	if err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的项目 ID")
+		return
+	}
+
+	actorID, _ := middleware.GetUserID(c)
+
+	if err := h.projectSvc.DeleteProject(c.Request.Context(), projectID, actorID); err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	respond(c, http.StatusAccepted, gin.H{"message": "项目删除已接受，异步清理中"})
+}
+
+// Suspend 冻结项目。POST /api/v1/projects/:projectID/suspend
+func (h *ProjectHandler) Suspend(c *gin.Context) {
+	projectID, err := uuid.Parse(c.Param("projectID"))
+	if err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的项目 ID")
+		return
+	}
+
+	actorID, _ := middleware.GetUserID(c)
+
+	if err := h.projectSvc.SuspendProject(c.Request.Context(), projectID, actorID, "管理员冻结项目"); err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	respond(c, http.StatusOK, gin.H{"message": "项目已冻结"})
+}
+
+// Unsuspend 解冻项目。POST /api/v1/projects/:projectID/unsuspend
+func (h *ProjectHandler) Unsuspend(c *gin.Context) {
+	projectID, err := uuid.Parse(c.Param("projectID"))
+	if err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的项目 ID")
+		return
+	}
+
+	actorID, _ := middleware.GetUserID(c)
+
+	if err := h.projectSvc.ReactivateProject(c.Request.Context(), projectID, actorID); err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	respond(c, http.StatusOK, gin.H{"message": "项目已解冻"})
+}
+
 // ── DomainHandler ──
 
 // DomainHandler 域名相关的 HTTP Handler。

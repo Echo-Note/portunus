@@ -224,6 +224,12 @@ type CreateDomainRequest struct {
 	SSLEnabled bool   `json:"ssl_enabled"`
 }
 
+// UpdateDomainRequest 更新域名请求。
+type UpdateDomainRequest struct {
+	DomainName string `json:"domain_name,omitempty"`
+	SSLEnabled *bool  `json:"ssl_enabled,omitempty"` // 使用指针区分"不传"和"传 false"
+}
+
 // DomainResponse 域名响应。
 type DomainResponse struct {
 	ID         uuid.UUID `json:"id"`
@@ -287,12 +293,54 @@ type ChangeRoleRequest struct {
 	Role string `json:"role" binding:"required,oneof=admin editor viewer"`
 }
 
+// ── 邀请 ──
+
+// InvitationResponse 邀请详情响应。
+type InvitationResponse struct {
+	ID              uuid.UUID `json:"id"`
+	Email           string    `json:"email"`
+	Role            string    `json:"role"`
+	Status          string    `json:"status"`
+	InvitationToken string    `json:"invitation_token"`
+	ExpiresAt       time.Time `json:"expires_at"`
+	ProjectName     string    `json:"project_name,omitempty"`
+	ProjectID       string    `json:"project_id,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
 // ── 共享 ──
 
 // CreateShareRequest 创建共享请求。
 type CreateShareRequest struct {
 	TargetProjectID uuid.UUID `json:"target_project_id" binding:"required"`
 	Permission      string    `json:"permission" binding:"required,oneof=read_only edit"`
+}
+
+// ShareResponse 共享响应。
+type ShareResponse struct {
+	ID              uuid.UUID  `json:"id"`
+	DomainID        uuid.UUID  `json:"domain_id"`
+	SourceProjectID uuid.UUID  `json:"source_project_id"`
+	TargetProjectID uuid.UUID  `json:"target_project_id"`
+	Permission      string     `json:"permission"`
+	Status          string     `json:"status"`
+	ExpiresAt       *time.Time `json:"expires_at,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+}
+
+// ── API Token ──
+
+// TokenResponse API Token 响应（不含明文 Token）。
+type TokenResponse struct {
+	ID          uuid.UUID  `json:"id"`
+	Name        string     `json:"name"`
+	TokenPrefix string     `json:"token_prefix"`
+	ProjectID   uuid.UUID  `json:"project_id"`
+	Scopes      []string   `json:"scopes"`
+	LastUsedAt  *time.Time `json:"last_used_at,omitempty"`
+	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
+	Status      string     `json:"status"`
+	CreatedAt   time.Time  `json:"created_at"`
 }
 
 // ── 审计 ──

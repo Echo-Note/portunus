@@ -6,48 +6,104 @@ on:
   pull_request:
     branches: [main, develop]
 
+# ── 全局配置 ──
 env:
-  GO_VERSION: '1.22'
+  GO_VERSION: '1.26'  # 与 go.mod 保持一致
   NODE_VERSION: '20'
 
+# 取消同一 PR/分支上正在运行的旧 CI，避免资源浪费
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write       # 仅 report-failure job 需要
+
 jobs:
-  # ── 后端单元测试 ──
+  # ═══════════════════════════════════════════════════════════════
+  # 变更检测（跳过无关 job，节省 CI 分钟数）
+  # ═══════════════════════════════════════════════════════════════
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      ent-schema: ${{ steps.filter.outputs.ent-schema }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'ent/schema/**'
+              - 'ent/migrate/**'
+              - 'sqlc.yaml'
+              - '.golangci.yml'
+            frontend:
+              - 'web/src/**'
+              - 'web/public/**'
+              - 'web/package.json'
+              - 'web/package-lock.json'
+              - 'web/tsconfig.json'
+              - 'web/.eslintrc*'
+            ent-schema:
+              - 'ent/schema/**'
+              - 'sqlc.yaml'
+
+  # ═══════════════════════════════════════════════════════════════
+  # 后端单元测试
+  # ═══════════════════════════════════════════════════════════════
   unit-test:
     name: Unit Test
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: ${{ needs.changes.outputs.backend == 'true' }}
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
-      - name: Download deps
-        run: go mod download
+          cache: true
       - name: Run unit tests
         run: go test -race -cover -coverprofile=coverage.out ./internal/...
       - name: Check coverage
         run: |
-          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
           echo "Coverage: ${COVERAGE}%"
-          # 阈值 80%
-          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
-            echo "::error::Coverage ${COVERAGE}% is below 80% threshold"
+          THRESHOLD=80
+          if awk "BEGIN {exit !($COVERAGE < $THRESHOLD)}"; then
+            echo "::error::Coverage ${COVERAGE}% is below ${THRESHOLD}% threshold"
             exit 1
           fi
       - name: Upload coverage
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: coverage.out
 
-  # ── 后端 lint ──
+  # ═══════════════════════════════════════════════════════════════
+  # 后端 lint
+  # ═══════════════════════════════════════════════════════════════
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: ${{ needs.changes.outputs.backend == 'true' }}
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: true
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
@@ -56,10 +112,40 @@ jobs:
       - name: go vet
         run: go vet ./...
 
-  # ── 集成测试（需要 PostgreSQL + Redis + Caddy）──
+  # ═══════════════════════════════════════════════════════════════
+  # 代码生成检查（仅 ent schema 变更时触发）
+  # ═══════════════════════════════════════════════════════════════
+  generate-check:
+    name: sqlc Generate Check
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: ${{ needs.changes.outputs.ent-schema == 'true' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Install sqlc
+        run: go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+      - name: Check generated code is up to date
+        run: |
+          sqlc generate -f sqlc.yaml
+          if ! git diff --exit-code internal/repository/generated/; then
+            echo "::error::Generated code is out of date. Run 'sqlc generate' and commit."
+            exit 1
+          fi
+
+  # ═══════════════════════════════════════════════════════════════
+  # 集成测试（仅后端代码变更时触发，依赖 PostgreSQL + Redis）
+  # ═══════════════════════════════════════════════════════════════
   integration-test:
     name: Integration Test
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: ${{ needs.changes.outputs.backend == 'true' }}
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16-alpine
@@ -91,6 +177,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: true
       - name: Install migrate
         run: |
           curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.1/migrate.linux-amd64.tar.gz | tar xz
@@ -100,34 +187,22 @@ jobs:
       - name: Run integration tests
         run: go test -race -tags=integration -v ./test/integration/...
 
-  # ── 代码生成检查 ──
-  generate-check:
-    name: sqlc Generate Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-      - name: Install sqlc
-        run: go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-      - name: Check generated code is up to date
-        run: |
-          sqlc generate -f sqlc.yaml
-          if ! git diff --exit-code internal/repository/generated/; then
-            echo "::error::Generated code is out of date. Run 'sqlc generate' and commit."
-            exit 1
-          fi
-
-  # ── 前端测试 ──
+  # ═══════════════════════════════════════════════════════════════
+  # 前端测试（仅前端文件变更时触发）
+  # ═══════════════════════════════════════════════════════════════
   frontend-test:
     name: Frontend Test
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
       - name: Install deps
         run: cd web && npm ci
       - name: Lint
@@ -137,16 +212,25 @@ jobs:
       - name: Build
         run: cd web && npm run build
 
-  # ── 构建 ──
+  # ═══════════════════════════════════════════════════════════════
+  # 构建（仅当所有必要检查通过后执行）
+  # ═══════════════════════════════════════════════════════════════
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [unit-test, lint, integration-test, frontend-test]
+    needs: [unit-test, lint, integration-test]
+    # 即使某个 job 被路径过滤跳过，build 仍可继续
+    if: |
+      always() &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: true
       - name: Build backend
         run: CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/portunus cmd/portunus/main.go
       - name: Upload artifact
@@ -154,3 +238,144 @@ jobs:
         with:
           name: portunus-binary
           path: bin/portunus
+
+  # ═══════════════════════════════════════════════════════════════
+  # 失败自动创建 Issue（仅 push 到 main/develop 时触发）
+  # ═══════════════════════════════════════════════════════════════
+  report-failure:
+    name: Report Failure
+    runs-on: ubuntu-latest
+    needs: [unit-test, lint, generate-check, integration-test, frontend-test, build]
+    if: |
+      always() &&
+      (github.event_name == 'push') &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') &&
+      contains(needs.*.result, 'failure')
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create or update failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # 收集失败 job 信息
+          FAILED_JOBS=""
+          for job in unit-test lint generate-check integration-test frontend-test build; do
+            result="${{ needs.${job}.result }}"
+            if [ "$result" = "failure" ]; then
+              FAILED_JOBS="${FAILED_JOBS}- ${job}\n"
+            fi
+          done
+
+          WORKFLOW_NAME="${{ github.workflow }}"
+          BRANCH="${{ github.ref_name }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          COMMIT_SHA="${{ github.sha }}"
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          ACTOR="${{ github.actor }}"
+
+          ISSUE_TITLE="CI Failure: ${WORKFLOW_NAME} on ${BRANCH}"
+          ISSUE_BODY="## CI 流水线失败
+
+          | 项目 | 详情 |
+          |------|------|
+          | **分支** | \`${BRANCH}\` |
+          | **提交** | \`${COMMIT_SHA:0:7}\` — ${COMMIT_MSG} |
+          | **触发者** | @${ACTOR} |
+          | **运行日志** | [查看详情](${RUN_URL}) |
+
+          ### 失败的 Job
+
+          $(echo -e "${FAILED_JOBS}")
+
+          > 🤖 此 Issue 由 CI 流水线自动创建。请查看运行日志定位问题。
+          "
+
+          LABEL="ci-failure"
+
+          # 确保 label 存在（忽略已存在的错误）
+          gh label create "${LABEL}" --color "d73a4a" --description "CI 流水线自动创建的失败追踪" 2>/dev/null || true
+
+          # 查找是否已有同分支的未关闭 failure issue
+          EXISTING_ISSUE=$(gh issue list \
+            --label "${LABEL}" \
+            --state open \
+            --search "CI Failure: ${WORKFLOW_NAME} on ${BRANCH}" \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [ -n "${EXISTING_ISSUE}" ]; then
+            echo "Found existing issue #${EXISTING_ISSUE}, adding comment..."
+            gh issue comment "${EXISTING_ISSUE}" \
+              --body "### ⚠️ 再次失败
+
+          | 项目 | 详情 |
+          |------|------|
+          | **提交** | \`${COMMIT_SHA:0:7}\` — ${COMMIT_MSG} |
+          | **触发者** | @${ACTOR} |
+          | **运行日志** | [查看详情](${RUN_URL}) |
+
+          失败的 Job: $(echo -e "${FAILED_JOBS}" | tr '\n' ' ')"
+          else
+            echo "Creating new failure issue..."
+            gh issue create \
+              --title "${ISSUE_TITLE}" \
+              --body "${ISSUE_BODY}" \
+              --label "${LABEL}"
+          fi
+
+  # ═══════════════════════════════════════════════════════════════
+  # 成功后自动关闭之前 CI 失败创建的 Issue
+  # ═══════════════════════════════════════════════════════════════
+  close-failure-issue:
+    name: Close Failure Issue
+    runs-on: ubuntu-latest
+    needs: [unit-test, lint, generate-check, integration-test, frontend-test, build]
+    if: |
+      always() &&
+      (github.event_name == 'push') &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Close resolved failure issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          WORKFLOW_NAME="${{ github.workflow }}"
+          BRANCH="${{ github.ref_name }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          # 查找同分支的未关闭 failure issue
+          ISSUES=$(gh issue list \
+            --label "ci-failure" \
+            --state open \
+            --search "CI Failure: ${WORKFLOW_NAME} on ${BRANCH}" \
+            --json number \
+            --jq '.[].number')
+
+          if [ -n "${ISSUES}" ]; then
+            for num in ${ISSUES}; do
+              echo "Closing issue #${num} — CI has recovered."
+              gh issue comment "${num}" \
+                --body "### ✅ CI 已恢复
+
+          最近的 CI 运行已成功通过。
+          [查看运行详情](${RUN_URL})
+
+          此 Issue 将自动关闭。"
+              gh issue close "${num}" \
+                --reason "completed"
+            done
+          else
+            echo "No open failure issues to close."
+          fi

@@ -269,6 +269,50 @@ func (s *MemberService) GetMemberRole(ctx context.Context, projectID, userID uui
 	return string(member.Role), nil
 }
 
+// GetInvitation 根据邀请令牌查询邀请详情。
+func (s *MemberService) GetInvitation(ctx context.Context, token string) (*generated.Invitation, error) {
+	inv, err := s.client.Invitation.Query().
+		Where(invitation.InvitationTokenEQ(token)).
+		WithProject().
+		Only(ctx)
+	if err != nil {
+		if generated.IsNotFound(err) {
+			return nil, fmt.Errorf("%w: 邀请不存在", ErrNotFound)
+		}
+		return nil, fmt.Errorf("查询邀请: %w", err)
+	}
+	return inv, nil
+}
+
+// LeaveProject 当前成员主动退出项目。
+// 项目所有者不能退出（需先转让所有权或删除项目）。
+func (s *MemberService) LeaveProject(ctx context.Context, projectID, userID uuid.UUID) error {
+	member, err := s.client.ProjectMember.Query().
+		Where(projectmember.ProjectIDEQ(projectID), projectmember.UserIDEQ(userID), projectmember.StatusEQ(projectmember.StatusActive)).
+		Only(ctx)
+	if err != nil {
+		if generated.IsNotFound(err) {
+			return fmt.Errorf("%w: 不是项目成员", ErrNotFound)
+		}
+		return fmt.Errorf("查询成员: %w", err)
+	}
+
+	// 所有者不能退出
+	if member.Role == projectmember.RoleOwner {
+		return fmt.Errorf("%w: 项目所有者不能退出，请先转让所有权或删除项目", ErrForbidden)
+	}
+
+	return s.stateMachine.ExecuteTransition(ctx, &StateTransition{
+		EntityType: "member",
+		EntityID:   fmt.Sprintf("%s-%s", userID, projectID),
+		FromState:  string(member.Status),
+		ToState:    string(projectmember.StatusLeft),
+		Trigger:    "user_action",
+		ActorID:    userID.String(),
+		Reason:     "成员主动退出项目",
+	})
+}
+
 // toInvitationRole 将字符串转换为 invitation.Role 枚举类型。
 func toInvitationRole(role string) (invitation.Role, error) {
 	switch role {

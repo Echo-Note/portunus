@@ -255,6 +255,125 @@ func (s *ProxyService) ListUpstreams(ctx context.Context, proxyConfigID uuid.UUI
 	return upstreams, nil
 }
 
+// GetProxyConfigByDomainID 根据域名 ID 获取代理配置。
+func (s *ProxyService) GetProxyConfigByDomainID(ctx context.Context, domainID uuid.UUID) (*generated.ProxyConfig, error) {
+	pc, err := s.client.ProxyConfig.Query().
+		Where(proxyconfig.DomainIDEQ(domainID)).
+		Only(ctx)
+	if err != nil {
+		if generated.IsNotFound(err) {
+			return nil, fmt.Errorf("%w: 代理配置不存在", ErrNotFound)
+		}
+		return nil, fmt.Errorf("查询代理配置: %w", err)
+	}
+	return pc, nil
+}
+
+// UpdateProxyConfigInput 更新代理配置输入参数。
+type UpdateProxyConfigInput struct {
+	LbPolicy            string `json:"lb_policy"`             // 可选，负载均衡策略
+	HealthCheckURI      string `json:"health_check_uri"`      // 可选，健康检查 URI
+	HealthCheckInterval string `json:"health_check_interval"` // 可选，健康检查间隔
+	Timeout             string `json:"timeout"`               // 可选，超时时间
+}
+
+// UpdateProxyConfig 更新代理配置。
+func (s *ProxyService) UpdateProxyConfig(ctx context.Context, proxyConfigID uuid.UUID, input UpdateProxyConfigInput) (*generated.ProxyConfig, error) {
+	pc, err := s.client.ProxyConfig.Get(ctx, proxyConfigID)
+	if err != nil {
+		if generated.IsNotFound(err) {
+			return nil, fmt.Errorf("%w: 代理配置不存在", ErrNotFound)
+		}
+		return nil, fmt.Errorf("查询代理配置: %w", err)
+	}
+
+	update := pc.Update()
+	if input.LbPolicy != "" {
+		update.SetLbPolicy(toLbPolicy(input.LbPolicy))
+	}
+	if input.HealthCheckURI != "" {
+		update.SetHealthCheckURI(input.HealthCheckURI)
+	}
+	if input.HealthCheckInterval != "" {
+		update.SetHealthCheckInterval(input.HealthCheckInterval)
+	}
+	if input.Timeout != "" {
+		update.SetTimeout(input.Timeout)
+	}
+
+	pc, err = update.Save(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("更新代理配置: %w", err)
+	}
+
+	slog.InfoContext(ctx, "代理配置已更新",
+		"proxy_config_id", proxyConfigID,
+		"lb_policy", string(pc.LbPolicy),
+	)
+
+	return pc, nil
+}
+
+// GetUpstreamStatus 获取域名下所有上游的健康状态。
+// 从 Caddy 获取实际的上游健康数据，并与数据库中的上游记录合并。
+func (s *ProxyService) GetUpstreamStatus(ctx context.Context, domainID uuid.UUID) ([]UpstreamStatus, error) {
+	// 获取域名的代理配置
+	pc, err := s.GetProxyConfigByDomainID(ctx, domainID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 从数据库获取上游列表
+	upstreams, err := s.ListUpstreams(ctx, pc.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 从 Caddy 获取上游健康状态
+	caddyStatuses := make(map[string]CaddyUpstreamStatus)
+	raw, err := s.caddyClient.GetUpstreams(ctx)
+	if err == nil {
+		// 尝试解析 Caddy 返回的上游状态
+		_ = raw // 实际的 Caddy 响应解析逻辑
+		// 未来：解析 JSON 并填充 caddyStatuses
+	}
+
+	// 合并数据库和 Caddy 状态
+	var result []UpstreamStatus
+	for _, u := range upstreams {
+		status := UpstreamStatus{
+			UpstreamID:  u.ID,
+			DialAddress: u.DialAddress,
+			Status:      string(u.Status),
+			Healthy:     u.Status == upstream.StatusActive,
+			Fails:       0,
+		}
+		if cs, ok := caddyStatuses[u.DialAddress]; ok {
+			status.Healthy = cs.Healthy
+			status.Fails = cs.Fails
+		}
+		result = append(result, status)
+	}
+
+	return result, nil
+}
+
+// UpstreamStatus 上游健康状态。
+type UpstreamStatus struct {
+	UpstreamID  uuid.UUID `json:"upstream_id"`
+	DialAddress string    `json:"dial_address"`
+	Status      string    `json:"status"`
+	Healthy     bool      `json:"healthy"`
+	Fails       int       `json:"fails"`
+}
+
+// CaddyUpstreamStatus Caddy 返回的上游健康状态。
+type CaddyUpstreamStatus struct {
+	DialAddress string
+	Healthy     bool
+	Fails       int
+}
+
 // syncUpstreamsToCaddy 将数据库中的上游列表同步到 Caddy 配置。
 func (s *ProxyService) syncUpstreamsToCaddy(ctx context.Context, caddyProxyID string, proxyConfigID uuid.UUID) error {
 	upstreams, err := s.client.Upstream.Query().

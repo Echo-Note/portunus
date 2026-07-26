@@ -242,6 +242,74 @@ func (s *DomainService) EnableDomain(ctx context.Context, domainID uuid.UUID) er
 	})
 }
 
+// UpdateDomainInput 更新域名输入参数。
+type UpdateDomainInput struct {
+	DomainName string `json:"domain_name"` // 可选，域名名称
+	SSLEnabled *bool  `json:"ssl_enabled"` // 可选，是否启用 SSL，使用指针区分"不传"和"传 false"
+}
+
+// UpdateDomain 更新域名配置（名称和 SSL 设置）。
+// 如果域名名称变更，需要同步更新 Caddy 路由配置。
+func (s *DomainService) UpdateDomain(ctx context.Context, domainID uuid.UUID, input UpdateDomainInput) (*generated.Domain, error) {
+	d, err := s.GetDomain(ctx, domainID)
+	if err != nil {
+		return nil, err
+	}
+
+	if d.Status == domain.StatusDeleted || d.Status == domain.StatusDeleting {
+		return nil, fmt.Errorf("%w: 域名正在删除中", ErrInvalidTransition)
+	}
+
+	// 如果修改了域名名称，检查全局唯一性
+	if input.DomainName != "" && input.DomainName != d.DomainName {
+		exists, err := s.client.Domain.Query().
+			Where(domain.DomainNameEQ(input.DomainName)).
+			Exist(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("查询域名: %w", err)
+		}
+		if exists {
+			return nil, fmt.Errorf("%w: 域名 %s 已被使用", ErrDuplicate, input.DomainName)
+		}
+	}
+
+	update := d.Update()
+	if input.DomainName != "" {
+		update.SetDomainName(input.DomainName)
+	}
+	if input.SSLEnabled != nil {
+		update.SetSslEnabled(*input.SSLEnabled)
+	}
+
+	d, err = update.Save(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("更新域名: %w", err)
+	}
+
+	// 同步更新 Caddy 路由配置
+	if input.DomainName != "" || input.SSLEnabled != nil {
+		routeConfig := buildCaddyRouteConfig(d.DomainName, d.CaddyID, d.SslEnabled)
+		_, etag, getErr := s.caddyClient.GetID(ctx, d.CaddyID)
+		if getErr == nil {
+			if _, patchErr := s.caddyClient.PatchID(ctx, d.CaddyID, routeConfig, etag); patchErr != nil {
+				slog.WarnContext(ctx, "同步 Caddy 路由配置失败",
+					"domain_id", domainID,
+					"caddy_id", d.CaddyID,
+					"err", patchErr,
+				)
+			}
+		}
+	}
+
+	slog.InfoContext(ctx, "域名配置已更新",
+		"domain_id", domainID,
+		"domain_name", d.DomainName,
+		"ssl_enabled", d.SslEnabled,
+	)
+
+	return d, nil
+}
+
 // DeleteDomain 删除域名及关联的 Caddy 配置节点。
 func (s *DomainService) DeleteDomain(ctx context.Context, domainID uuid.UUID) error {
 	d, err := s.GetDomain(ctx, domainID)
