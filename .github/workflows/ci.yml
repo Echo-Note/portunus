@@ -57,7 +57,7 @@ jobs:
               - 'sqlc.yaml'
 
   # ═══════════════════════════════════════════════════════════════
-  # 后端单元测试
+  # 后端单元测试（需要 PostgreSQL — 部分测试依赖真实数据库）
   # ═══════════════════════════════════════════════════════════════
   unit-test:
     name: Unit Test
@@ -65,12 +65,31 @@ jobs:
     needs: [changes]
     if: ${{ needs.changes.outputs.backend == 'true' }}
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: portunus
+          POSTGRES_PASSWORD: portunus
+          POSTGRES_DB: portunus
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://portunus:portunus@localhost:5432/portunus?sslmode=disable
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+      - name: Create database schema
+        run: |
+          go run -mod=mod .github/scripts/migrate_schema.go
       - name: Run unit tests
         run: go test -race -cover -coverprofile=coverage.out ./internal/...
       - name: Check coverage

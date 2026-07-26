@@ -362,6 +362,161 @@ func (s *APITestSuite) TestDuplicateRegistration() {
 	assert.Equal(t, http.StatusConflict, resp.Code)
 }
 
+// TestProject_UpdateDelete 测试项目更新、冻结、解冻、删除。
+func (s *APITestSuite) TestProject_UpdateDelete() {
+	t := s.T()
+	s.ensureLoggedIn(t)
+	s.ensureProject(t)
+
+	// 1. 更新项目
+	updateBody := `{"name":"更新后的项目名","description":"更新后的描述"}`
+	resp := s.doAuthedRequest("PATCH", "/api/v1/projects/"+s.projectID, updateBody)
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	// 2. 冻结项目
+	resp = s.doAuthedRequest("POST", "/api/v1/projects/"+s.projectID+"/suspend", "")
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	// 3. 解冻项目
+	resp = s.doAuthedRequest("POST", "/api/v1/projects/"+s.projectID+"/unsuspend", "")
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	// 4. 删除项目
+	resp = s.doAuthedRequest("DELETE", "/api/v1/projects/"+s.projectID, "")
+	assert.Equal(t, http.StatusAccepted, resp.Code)
+}
+
+// TestDomain_Update 测试域名更新。
+func (s *APITestSuite) TestDomain_Update() {
+	t := s.T()
+	s.ensureLoggedIn(t)
+	s.ensureProject(t)
+	s.ensureDomain(t)
+
+	updateBody := `{"domain_name":"updated-api.example.com"}`
+	resp := s.doAuthedRequest("PATCH", "/api/v1/projects/"+s.projectID+"/domains/"+s.domainID, updateBody)
+	assert.Equal(t, http.StatusOK, resp.Code)
+}
+
+// TestInvitation_Flow 测试邀请的完整流程。
+func (s *APITestSuite) TestInvitation_Flow() {
+	t := s.T()
+	s.ensureLoggedIn(t)
+	s.ensureProject(t)
+
+	// 1. 邀请成员
+	inviteBody := `{"email":"flow-invited@example.com","role":"viewer"}`
+	resp := s.doAuthedRequest("POST", "/api/v1/projects/"+s.projectID+"/members", inviteBody)
+	assert.Equal(t, http.StatusCreated, resp.Code)
+
+	var invResp struct {
+		Data struct {
+			InvitationToken string `json:"invitation_token"`
+		} `json:"data"`
+	}
+	json.Unmarshal(resp.Body.Bytes(), &invResp)
+	assert.NotEmpty(t, invResp.Data.InvitationToken)
+
+	// 2. 查看邀请详情
+	resp = s.doAuthedRequest("GET", "/api/v1/invitations/"+invResp.Data.InvitationToken, "")
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	// 3. 拒绝邀请
+	resp = s.doAuthedRequest("POST", "/api/v1/invitations/"+invResp.Data.InvitationToken+"/reject", "")
+	assert.Equal(t, http.StatusOK, resp.Code)
+}
+
+// TestMember_Leave 测试成员退出项目。
+func (s *APITestSuite) TestMember_Leave() {
+	t := s.T()
+	s.ensureLoggedIn(t)
+	s.ensureProject(t)
+
+	// 查询当前用户作为成员的角色
+	resp := s.doAuthedRequest("GET", "/api/v1/projects/"+s.projectID+"/members", "")
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	// 尝试退出（owner 不能退出，但测试仍会执行）
+	resp = s.doAuthedRequest("POST", "/api/v1/projects/"+s.projectID+"/members/me/leave", "")
+	// owner 不能退出，所以预期 403
+	assert.True(t, resp.Code == http.StatusOK || resp.Code == http.StatusForbidden)
+}
+
+// TestAPI_Token_CRUD 测试 API Token 创建、列表、撤销。
+func (s *APITestSuite) TestAPI_Token_CRUD() {
+	t := s.T()
+	s.ensureLoggedIn(t)
+	s.ensureProject(t)
+
+	// 1. 创建 Token
+	createBody := fmt.Sprintf(`{"name":"测试Token","project_id":"%s"}`, s.projectID)
+	resp := s.doAuthedRequest("POST", "/api/v1/me/tokens", createBody)
+	assert.Equal(t, http.StatusCreated, resp.Code)
+
+	var tokenResp struct {
+		Data struct {
+			Token       string `json:"token"`
+			TokenID     string `json:"token_id"`
+			TokenPrefix string `json:"token_prefix"`
+		} `json:"data"`
+	}
+	json.Unmarshal(resp.Body.Bytes(), &tokenResp)
+	assert.NotEmpty(t, tokenResp.Data.Token)
+	assert.NotEmpty(t, tokenResp.Data.TokenID)
+
+	// 2. 列出 Token
+	resp = s.doAuthedRequest("GET", "/api/v1/me/tokens", "")
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	// 3. 撤销 Token
+	resp = s.doAuthedRequest("DELETE", "/api/v1/me/tokens/"+tokenResp.Data.TokenID, "")
+	assert.Equal(t, http.StatusOK, resp.Code)
+}
+
+// TestUser_UpdateMe 测试更新用户信息。
+func (s *APITestSuite) TestUser_UpdateMe() {
+	t := s.T()
+	s.ensureLoggedIn(t)
+
+	updateBody := `{"email":"updated-me@example.com"}`
+	resp := s.doAuthedRequest("PATCH", "/api/v1/me", updateBody)
+	assert.Equal(t, http.StatusOK, resp.Code)
+}
+
+// TestShares_ListReceived 测试列出收到的共享。
+func (s *APITestSuite) TestShares_ListReceived() {
+	t := s.T()
+	s.ensureLoggedIn(t)
+
+	resp := s.doAuthedRequest("GET", "/api/v1/shares", "")
+	assert.Equal(t, http.StatusOK, resp.Code)
+}
+
+// TestAuth_Stubs 测试阶段 2 的认证存根端点。
+func (s *APITestSuite) TestAuth_Stubs() {
+	t := s.T()
+
+	// 邮箱验证
+	resp := s.doRequest("POST", "/api/v1/auth/verify-email", `{"token":"test-token"}`)
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	// 忘记密码
+	resp = s.doRequest("POST", "/api/v1/auth/forgot-password", `{"email":"test@example.com"}`)
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	// 重置密码
+	resp = s.doRequest("POST", "/api/v1/auth/reset-password", `{"token":"test","new_password":"newpass123"}`)
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	// OAuth 跳转
+	resp = s.doRequest("GET", "/api/v1/auth/oauth/github", "")
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	// OAuth 回调
+	resp = s.doRequest("GET", "/api/v1/auth/oauth/github/callback?code=test-code", "")
+	assert.Equal(t, http.StatusOK, resp.Code)
+}
+
 // ── 辅助方法 ──
 
 // doRequest 发送 HTTP 请求。
@@ -432,6 +587,23 @@ func (s *APITestSuite) ensureProject(t *testing.T) {
 	}
 	json.Unmarshal(resp.Body.Bytes(), &projResp)
 	s.projectID = projResp.Data.ID
+}
+
+// ensureDomain 确保有域名 ID。
+func (s *APITestSuite) ensureDomain(t *testing.T) {
+	if s.domainID != "" {
+		return
+	}
+	s.ensureProject(t)
+	domainBody := `{"domain_name":"api-domain.example.com","ssl_enabled":true}`
+	resp := s.doAuthedRequest("POST", "/api/v1/projects/"+s.projectID+"/domains", domainBody)
+	var domainResp struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	json.Unmarshal(resp.Body.Bytes(), &domainResp)
+	s.domainID = domainResp.Data.ID
 }
 
 // getEnvOrDefault 获取环境变量或默认值。

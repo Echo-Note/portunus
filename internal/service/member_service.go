@@ -302,15 +302,20 @@ func (s *MemberService) LeaveProject(ctx context.Context, projectID, userID uuid
 		return fmt.Errorf("%w: 项目所有者不能退出，请先转让所有权或删除项目", ErrForbidden)
 	}
 
-	return s.stateMachine.ExecuteTransition(ctx, &StateTransition{
-		EntityType: "member",
-		EntityID:   fmt.Sprintf("%s-%s", userID, projectID),
-		FromState:  string(member.Status),
-		ToState:    string(projectmember.StatusLeft),
-		Trigger:    "user_action",
-		ActorID:    userID.String(),
-		Reason:     "成员主动退出项目",
-	})
+	// 直接更新成员状态（不使用状态机，因为 project_members 表使用复合主键，不支持状态机的 SQL 更新方式）
+	_, err = member.Update().
+		SetStatus(projectmember.StatusLeft).
+		Save(ctx)
+	if err != nil {
+		return fmt.Errorf("退出项目: %w", err)
+	}
+
+	slog.InfoContext(ctx, "成员已退出项目",
+		"project_id", projectID,
+		"user_id", userID,
+	)
+
+	return nil
 }
 
 // toInvitationRole 将字符串转换为 invitation.Role 枚举类型。
