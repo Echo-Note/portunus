@@ -65,6 +65,6 @@ cmd/migrate/
 .codebuddy/
 
 # Playwright MCP
-.playwright-mcp/certs/jwt-*.pem
+.playwright-mcp/
 certs/*.pem
 .golangci.bck.yml

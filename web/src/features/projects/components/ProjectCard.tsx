@@ -19,12 +19,13 @@ const { Text, Paragraph } = Typography;
 interface ProjectCardProps {
   project: Project;
   currentUserRole?: string;
+  onEdit?: (project: Project) => void;
 }
 
 /**
  * 项目卡片：展示名称、描述、域名数、成员数、状态标签及操作按钮。
  */
-export function ProjectCard({ project, currentUserRole }: ProjectCardProps) {
+export function ProjectCard({ project, currentUserRole, onEdit }: ProjectCardProps) {
   const navigate = useNavigate();
   const deleteProject = useDeleteProject();
   const suspendProject = useSuspendProject(project.id);
@@ -46,7 +47,7 @@ export function ProjectCard({ project, currentUserRole }: ProjectCardProps) {
             <EditOutlined
               onClick={(e) => {
                 e.stopPropagation();
-                // 编辑功能由 ProjectEditModal 处理
+                onEdit?.(project);
               }}
             />
           </Tooltip>

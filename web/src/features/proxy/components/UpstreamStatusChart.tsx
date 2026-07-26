@@ -1,6 +1,7 @@
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Card, Spin, Typography } from 'antd';
 import { useUpstreamStatus } from '../hooks';
+import { ErrorResult } from '../../../components/ui/ErrorResult';
 
 const { Text } = Typography;
 
@@ -9,18 +10,16 @@ interface UpstreamStatusChartProps {
   domainId: string;
 }
 
-const COLORS = {
+const COLORS: Record<string, string> = {
   healthy: '#52c41a',
   unhealthy: '#ff4d4f',
-  disabled: '#faad14',
-  unknown: '#d9d9d9',
 };
 
 /**
  * 上游健康状态饼图。
  */
 export function UpstreamStatusChart({ projectId, domainId }: UpstreamStatusChartProps) {
-  const { data: statuses = [], isLoading } = useUpstreamStatus(projectId, domainId);
+  const { data: statuses = [], isLoading, isError, refetch } = useUpstreamStatus(projectId, domainId);
 
   if (isLoading) {
     return (
@@ -30,11 +29,14 @@ export function UpstreamStatusChart({ projectId, domainId }: UpstreamStatusChart
     );
   }
 
+  if (isError) {
+    return <ErrorResult onRetry={() => refetch()} />;
+  }
+
   if (statuses.length === 0) {
     return <Text type="secondary">暂无健康状态数据</Text>;
   }
 
-  // 统计各状态数量
   const counts: Record<string, number> = {};
   statuses.forEach((s) => {
     const key = s.healthy ? 'healthy' : 'unhealthy';
@@ -62,7 +64,7 @@ export function UpstreamStatusChart({ projectId, domainId }: UpstreamStatusChart
             {chartData.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={COLORS[entry.name === '健康' ? 'healthy' : 'unhealthy']}
+                fill={COLORS[chartData[index].name === '健康' ? 'healthy' : 'unhealthy']}
               />
             ))}
           </Pie>

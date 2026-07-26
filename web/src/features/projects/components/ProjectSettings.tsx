@@ -1,4 +1,4 @@
-import { Card, Descriptions, Button, Popconfirm, Space, Alert } from 'antd';
+import { Card, Descriptions, Button, Popconfirm, Space, Alert, Tag } from 'antd';
 import { Project } from '../types';
 import { hasPermission } from '../../../types/rbac';
 import { StatusTag } from '../../../components/ui/StatusTag';
@@ -47,9 +47,13 @@ export function ProjectSettings({ project, currentUserRole, onEdit }: ProjectSet
         </Descriptions.Item>
         <Descriptions.Item label="项目 ID">{project.project_id}</Descriptions.Item>
         <Descriptions.Item label="环境">
-          <StatusTag status={project.environment} label={project.environment} />
+          {project.environment === 'production' ? <Tag color="red">生产</Tag>
+           : project.environment === 'staging' ? <Tag color="orange">预发布</Tag>
+           : <Tag color="blue">开发</Tag>}
         </Descriptions.Item>
-        <Descriptions.Item label="计划">{project.plan}</Descriptions.Item>
+        <Descriptions.Item label="计划">
+          {project.plan === 'free' ? '免费版' : project.plan === 'pro' ? '专业版' : '企业版'}
+        </Descriptions.Item>
         <Descriptions.Item label="最大域名数">{project.max_domains}</Descriptions.Item>
         <Descriptions.Item label="最大成员数">{project.max_members}</Descriptions.Item>
         <Descriptions.Item label="创建时间">

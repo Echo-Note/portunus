@@ -1,4 +1,4 @@
-import { Menu } from 'antd';
+import { Menu, Spin } from 'antd';
 import {
   DashboardOutlined,
   ProjectOutlined,
@@ -16,7 +16,7 @@ export function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { projectId } = useParams();
-  const { data: projects = [] } = useProjects();
+  const { data: projects = [], isLoading } = useProjects();
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const selectedKeys: string[] = [];
@@ -40,20 +40,26 @@ export function Sidebar() {
       key: 'projects-header',
       label: '项目',
       type: 'group' as const,
-      children: [
-        ...(projects.map((p) => ({
-          key: p.id,
-          icon: <ProjectOutlined />,
-          label: p.name,
-          onClick: () => navigate(`/projects/${p.id}`),
-        }))),
-        {
-          key: 'create-project',
-          icon: <PlusOutlined />,
-          label: '创建项目',
-          onClick: () => setCreateModalOpen(true),
-        },
-      ],
+      children: isLoading
+        ? [{
+            key: 'loading',
+            label: <Spin size="small" />,
+            disabled: true,
+          }]
+        : [
+            ...(projects.map((p) => ({
+              key: p.id,
+              icon: <ProjectOutlined />,
+              label: p.name,
+              onClick: () => navigate(`/projects/${p.id}`),
+            }))),
+            {
+              key: 'create-project',
+              icon: <PlusOutlined />,
+              label: '创建项目',
+              onClick: () => setCreateModalOpen(true),
+            },
+          ],
     },
   ];
 

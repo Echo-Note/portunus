@@ -48,7 +48,7 @@ export function UserMenu() {
     <Dropdown menu={{ items }} placement="topRight" trigger={['click']}>
       <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
         <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#1677ff' }} />
-        <Text style={{ color: '#fff', maxWidth: 120 }} ellipsis>
+        <Text style={{ maxWidth: 120 }} ellipsis>
           {user?.email ?? ''}
         </Text>
       </div>

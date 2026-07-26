@@ -1,4 +1,4 @@
-import { Form, Select, Input, Button, Card, Spin } from 'antd';
+import { Form, Select, Input, Button, Card, Spin, message } from 'antd';
 import { useEffect } from 'react';
 import { useProxyConfig, useUpdateProxy } from '../hooks';
 import { LBPolicy, UpdateProxyInput } from '../types';
