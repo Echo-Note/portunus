@@ -2,6 +2,7 @@ package service
 
 import (
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -186,9 +187,9 @@ func TestStateTransition_ConcurrentOptimisticLock(t *testing.T) {
 			// 这里只测试守卫校验，不实际执行数据库操作
 			err := validateTransition("domain", "active", "updating")
 			if err == nil {
-				successCount++
+				atomic.AddInt32(&successCount, 1)
 			} else {
-				failCount++
+				atomic.AddInt32(&failCount, 1)
 			}
 		}()
 	}

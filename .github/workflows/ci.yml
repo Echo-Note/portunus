@@ -3,37 +3,51 @@ name: CI
 on:
   push:
     branches: [main, develop]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.editorconfig'
   pull_request:
     branches: [main, develop]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.editorconfig'
+  workflow_dispatch:  # 允许手动触发
 
 # ── 全局配置 ──
 env:
-  GO_VERSION: '1.26'  # 与 go.mod 保持一致
+  GO_VERSION: '1.26'
   NODE_VERSION: '20'
 
-# 取消同一 PR/分支上正在运行的旧 CI，避免资源浪费
+# 取消同一 PR/分支上正在运行的旧 CI
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  issues: write       # 仅 report-failure job 需要
+# 最小权限原则：默认无权限，各 job 显式声明
+permissions: {}
 
 jobs:
   # ═══════════════════════════════════════════════════════════════
-  # 变更检测（跳过无关 job，节省 CI 分钟数）
+  # 变更检测
   # ═══════════════════════════════════════════════════════════════
   changes:
     name: Detect Changes
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       ent-schema: ${{ steps.filter.outputs.ent-schema }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36  # v3.0.2
         id: filter
         with:
           filters: |
@@ -43,8 +57,9 @@ jobs:
               - 'go.sum'
               - 'ent/schema/**'
               - 'ent/migrate/**'
-              - 'sqlc.yaml'
               - '.golangci.yml'
+              - '.github/workflows/ci.yml'
+              - '.github/scripts/**'
             frontend:
               - 'web/src/**'
               - 'web/public/**'
@@ -52,12 +67,12 @@ jobs:
               - 'web/package-lock.json'
               - 'web/tsconfig.json'
               - 'web/.eslintrc*'
+              - '.github/workflows/ci.yml'
             ent-schema:
               - 'ent/schema/**'
-              - 'sqlc.yaml'
 
   # ═══════════════════════════════════════════════════════════════
-  # 后端单元测试（需要 PostgreSQL — 部分测试依赖真实数据库）
+  # 后端单元测试
   # ═══════════════════════════════════════════════════════════════
   unit-test:
     name: Unit Test
@@ -65,6 +80,8 @@ jobs:
     needs: [changes]
     if: ${{ needs.changes.outputs.backend == 'true' }}
     timeout-minutes: 10
+    permissions:
+      contents: read
     services:
       postgres:
         image: postgres:16-alpine
@@ -83,22 +100,28 @@ jobs:
       DATABASE_URL: postgres://portunus:portunus@localhost:5432/portunus?sslmode=disable
       PGUSER: portunus
       PGPASSWORD: portunus
+      JWT_PRIVATE_KEY_FILE: ${{ github.workspace }}/certs/jwt-private.pem
+      JWT_PUBLIC_KEY_FILE: ${{ github.workspace }}/certs/jwt-public.pem
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34  # v5.3.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-      - name: Create database schema
-        run: |
-          go run -mod=mod .github/scripts/migrate_schema.go
+
       - name: Generate JWT test keys
         run: |
           mkdir -p certs
           openssl genrsa -out certs/jwt-private.pem 2048
           openssl rsa -in certs/jwt-private.pem -pubout -out certs/jwt-public.pem
+
+      - name: Create database schema
+        run: go run -mod=mod .github/scripts/migrate_schema.go
+
       - name: Run unit tests
-        run: go test -race -cover -coverprofile=coverage.out ./internal/...
+        run: go test -race -cover -coverprofile=coverage.out -p 1 ./internal/...
+
       - name: Check coverage
         run: |
           COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
@@ -108,9 +131,10 @@ jobs:
             echo "::error::Coverage ${COVERAGE}% is below ${THRESHOLD}% threshold"
             exit 1
           fi
+
       - name: Upload coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1  # v4.6.1
         with:
           name: coverage
           path: coverage.out
@@ -124,21 +148,27 @@ jobs:
     needs: [changes]
     if: ${{ needs.changes.outputs.backend == 'true' }}
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34  # v5.3.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+
       - name: golangci-lint
-        run: |
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-          golangci-lint run --timeout=5m ./...
+        uses: golangci/golangci-lint-action@55c2c1448f86e01eaae002a5a3a9624417608d84  # v6.5.0
+        with:
+          version: latest
+          args: --timeout=5m
+
       - name: go vet
         run: go vet ./...
 
   # ═══════════════════════════════════════════════════════════════
-  # 代码生成检查（仅 ent schema 变更时触发）
+  # 代码生成检查（仅 Ent Schema 变更时触发）
   # ═══════════════════════════════════════════════════════════════
   generate-check:
     name: Ent Generate Check
@@ -146,12 +176,16 @@ jobs:
     needs: [changes]
     if: ${{ needs.changes.outputs.ent-schema == 'true' }}
     timeout-minutes: 5
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34  # v5.3.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+
       - name: Check generated code is up to date
         run: |
           go generate ./ent/...
@@ -161,7 +195,7 @@ jobs:
           fi
 
   # ═══════════════════════════════════════════════════════════════
-  # 集成测试（仅后端代码变更时触发，依赖 PostgreSQL + Redis）
+  # 集成测试
   # ═══════════════════════════════════════════════════════════════
   integration-test:
     name: Integration Test
@@ -169,6 +203,8 @@ jobs:
     needs: [changes]
     if: ${{ needs.changes.outputs.backend == 'true' }}
     timeout-minutes: 15
+    permissions:
+      contents: read
     services:
       postgres:
         image: postgres:16-alpine
@@ -195,19 +231,25 @@ jobs:
     env:
       DATABASE_URL: postgres://portunus:portunus@localhost:5432/portunus?sslmode=disable
       REDIS_URL: redis://localhost:6379/0
+      JWT_PRIVATE_KEY_FILE: ${{ github.workspace }}/certs/jwt-private.pem
+      JWT_PUBLIC_KEY_FILE: ${{ github.workspace }}/certs/jwt-public.pem
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34  # v5.3.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+
       - name: Generate JWT test keys
         run: |
           mkdir -p certs
           openssl genrsa -out certs/jwt-private.pem 2048
           openssl rsa -in certs/jwt-private.pem -pubout -out certs/jwt-public.pem
+
       - name: Run database schema migration
         run: go run -mod=mod .github/scripts/migrate_schema.go
+
       - name: Run integration tests
         run: |
           if [ -d test/integration ]; then
@@ -217,7 +259,7 @@ jobs:
           fi
 
   # ═══════════════════════════════════════════════════════════════
-  # 前端测试（仅前端文件变更时触发）
+  # 前端测试
   # ═══════════════════════════════════════════════════════════════
   frontend-test:
     name: Frontend Test
@@ -225,45 +267,56 @@ jobs:
     needs: [changes]
     if: ${{ needs.changes.outputs.frontend == 'true' }}
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - uses: actions/setup-node@1a4442cacd436585916779262731d5b162bc6ec7  # v4.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: web/package-lock.json
+
       - name: Install deps
         run: cd web && npm ci
+
       - name: Lint
         run: cd web && npm run lint
+
       - name: Test
         run: cd web && npm test -- --passWithNoTests
+
       - name: Build
         run: cd web && npm run build
 
   # ═══════════════════════════════════════════════════════════════
-  # 构建（仅当所有必要检查通过后执行）
+  # 构建
   # ═══════════════════════════════════════════════════════════════
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [unit-test, lint, integration-test]
-    # 即使某个 job 被路径过滤跳过，build 仍可继续
+    needs: [unit-test, lint, generate-check, integration-test, frontend-test]
     if: |
       always() &&
       !contains(needs.*.result, 'failure') &&
       !contains(needs.*.result, 'cancelled')
     timeout-minutes: 5
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34  # v5.3.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+
       - name: Build backend
         run: CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/portunus cmd/portunus/main.go
+
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1  # v4.6.1
         with:
           name: portunus-binary
           path: bin/portunus
@@ -285,7 +338,8 @@ jobs:
       contents: read
       issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
       - name: Create or update failure issue
         env:
           GH_TOKEN: ${{ github.token }}
@@ -325,7 +379,6 @@ jobs:
               return
             fi
 
-            # 获取失败 job 的 ID
             local job_id
             job_id=$(gh api "${API_URL}" \
               --jq ".jobs[] | select(.name == \"${job_name}\") | .id" 2>/dev/null || echo "")
@@ -334,12 +387,10 @@ jobs:
               return
             fi
 
-            # 获取 job 的步骤信息，找出失败的步骤
             local failed_step
             failed_step=$(gh api "repos/${REPO}/actions/jobs/${job_id}" \
               --jq '.steps[] | select(.conclusion == "failure") | .name' 2>/dev/null | head -1 || echo "")
 
-            # 下载日志，提取包含 error/fail/panic 的关键行（最多 15 行）
             local log_snippet
             log_snippet=$(gh api "repos/${REPO}/actions/jobs/${job_id}/logs" 2>/dev/null | \
               grep -iE '(error|Error|FAIL|panic|fatal)' | tail -15 || echo "(无法获取日志)")
@@ -356,7 +407,7 @@ jobs:
 
           get_failure_logs "Unit Test"        "${RESULT_UNIT_TEST:-}"
           get_failure_logs "Lint"             "${RESULT_LINT:-}"
-          get_failure_logs "sqlc Generate Check" "${RESULT_GENERATE_CHECK:-}"
+          get_failure_logs "Ent Generate Check" "${RESULT_GENERATE_CHECK:-}"
           get_failure_logs "Integration Test" "${RESULT_INTEGRATION_TEST:-}"
           get_failure_logs "Frontend Test"    "${RESULT_FRONTEND_TEST:-}"
           get_failure_logs "Build"            "${RESULT_BUILD:-}"
@@ -411,7 +462,7 @@ jobs:
           fi
 
   # ═══════════════════════════════════════════════════════════════
-  # 成功后自动关闭之前 CI 失败创建的 Issue
+  # 成功后自动关闭 CI 失败 Issue
   # ═══════════════════════════════════════════════════════════════
   close-failure-issue:
     name: Close Failure Issue
@@ -438,7 +489,6 @@ jobs:
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           ISSUE_TITLE="CI Failure: ${{ github.workflow }} on ${BRANCH}"
 
-          # 查找同分支的未关闭 failure issue
           ISSUES=$(gh issue list \
             --label "ci-failure" \
             --state open \

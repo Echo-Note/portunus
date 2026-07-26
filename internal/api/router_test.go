@@ -82,11 +82,11 @@ func (s *APITestSuite) SetupSuite() {
 	// 从文件读取 JWT 密钥
 	privateKeyFile := os.Getenv("JWT_PRIVATE_KEY_FILE")
 	if privateKeyFile == "" {
-		privateKeyFile = "certs/jwt-private.pem"
+		privateKeyFile = "../../certs/jwt-private.pem"
 	}
 	publicKeyFile := os.Getenv("JWT_PUBLIC_KEY_FILE")
 	if publicKeyFile == "" {
-		publicKeyFile = "certs/jwt-public.pem"
+		publicKeyFile = "../../certs/jwt-public.pem"
 	}
 
 	if data, err := os.ReadFile(privateKeyFile); err == nil {
@@ -134,7 +134,7 @@ func (s *APITestSuite) SetupSuite() {
 // TearDownSuite 在所有测试结束后执行一次。
 func (s *APITestSuite) TearDownSuite() {
 	if s.client != nil {
-		s.client.Close()
+		s.client.Close() //nolint:errcheck
 	}
 }
 
@@ -149,8 +149,8 @@ func (s *APITestSuite) ctx() context.Context {
 func (s *APITestSuite) TestAuth_Register_Login() {
 	t := s.T()
 
-	// 1. 注册
-	regBody := `{"email":"api-test@example.com","password":"test123456"}`
+	// 1. 注册（使用唯一邮箱避免与其他测试冲突）
+	regBody := `{"email":"auth-test@example.com","password":"test123456"}`
 	resp := s.doRequest("POST", "/api/v1/auth/register", regBody)
 	assert.Equal(t, http.StatusCreated, resp.Code)
 	var regResp struct {
@@ -160,22 +160,22 @@ func (s *APITestSuite) TestAuth_Register_Login() {
 			Email  string `json:"email"`
 		} `json:"data"`
 	}
-	json.Unmarshal(resp.Body.Bytes(), &regResp)
+	_ = json.Unmarshal(resp.Body.Bytes(), &regResp)
 	assert.Equal(t, 0, regResp.Code)
-	assert.Equal(t, "api-test@example.com", regResp.Data.Email)
+	assert.Equal(t, "auth-test@example.com", regResp.Data.Email)
 
 	// 2. 未激活用户登录应失败
-	loginBody := `{"email":"api-test@example.com","password":"test123456"}`
+	loginBody := `{"email":"auth-test@example.com","password":"test123456"}`
 	resp = s.doRequest("POST", "/api/v1/auth/login", loginBody)
 	assert.Equal(t, http.StatusUnauthorized, resp.Code)
 
-	// 3. 手动激活用户
+	// 3. 手动激活用户（按邮箱精确匹配）
 	ctx := s.ctx()
-	users, err := s.client.User.Query().All(ctx)
+	_, err := s.client.User.Update().
+		Where(user.EmailEQ("auth-test@example.com")).
+		SetStatus("active").
+		Save(ctx)
 	require.NoError(t, err)
-	if len(users) > 0 {
-		users[0].Update().SetStatus("active").Save(ctx) //nolint:errcheck
-	}
 
 	// 4. 登录
 	resp = s.doRequest("POST", "/api/v1/auth/login", loginBody)
@@ -188,7 +188,7 @@ func (s *APITestSuite) TestAuth_Register_Login() {
 			TokenType    string `json:"token_type"`
 		} `json:"data"`
 	}
-	json.Unmarshal(resp.Body.Bytes(), &loginResp)
+	_ = json.Unmarshal(resp.Body.Bytes(), &loginResp)
 	assert.Equal(t, 0, loginResp.Code)
 	assert.NotEmpty(t, loginResp.Data.AccessToken)
 	assert.Equal(t, "Bearer", loginResp.Data.TokenType)
@@ -204,8 +204,8 @@ func (s *APITestSuite) TestAuth_Register_Login() {
 			Email string `json:"email"`
 		} `json:"data"`
 	}
-	json.Unmarshal(resp.Body.Bytes(), &meResp)
-	assert.Equal(t, "api-test@example.com", meResp.Data.Email)
+	_ = json.Unmarshal(resp.Body.Bytes(), &meResp)
+	assert.Equal(t, "auth-test@example.com", meResp.Data.Email)
 
 	// 6. 刷新令牌
 	refreshBody := fmt.Sprintf(`{"refresh_token":"%s"}`, loginResp.Data.RefreshToken)
@@ -215,6 +215,9 @@ func (s *APITestSuite) TestAuth_Register_Login() {
 	// 7. 退出登录
 	resp = s.doAuthedRequest("POST", "/api/v1/auth/logout", "")
 	assert.Equal(t, http.StatusOK, resp.Code)
+
+	// 恢复 accessToken，避免影响后续测试（此测试使用不同用户）
+	s.accessToken = ""
 }
 
 // TestProject_CRUD 测试项目创建、查询、列表。
@@ -237,7 +240,7 @@ func (s *APITestSuite) TestProject_CRUD() {
 			Status    string `json:"status"`
 		} `json:"data"`
 	}
-	json.Unmarshal(resp.Body.Bytes(), &projResp)
+	_ = json.Unmarshal(resp.Body.Bytes(), &projResp)
 	assert.Equal(t, 0, projResp.Code)
 	assert.Equal(t, "test-proj-api", projResp.Data.ProjectID)
 	assert.Equal(t, "active", projResp.Data.Status)
@@ -256,7 +259,7 @@ func (s *APITestSuite) TestProject_CRUD() {
 			Total int `json:"total"`
 		} `json:"data"`
 	}
-	json.Unmarshal(resp.Body.Bytes(), &listResp)
+	_ = json.Unmarshal(resp.Body.Bytes(), &listResp)
 	assert.GreaterOrEqual(t, listResp.Data.Total, 1)
 
 	// 4. 重复创建项目 ID 应失败
@@ -281,7 +284,7 @@ func (s *APITestSuite) TestDomain_CRUD() {
 			CaddyID string `json:"caddy_id"`
 		} `json:"data"`
 	}
-	json.Unmarshal(resp.Body.Bytes(), &domainResp)
+	_ = json.Unmarshal(resp.Body.Bytes(), &domainResp)
 	assert.Equal(t, 0, domainResp.Code)
 	assert.Contains(t, domainResp.Data.CaddyID, "tenant_")
 	s.domainID = domainResp.Data.ID
@@ -297,6 +300,7 @@ func (s *APITestSuite) TestDomain_CRUD() {
 	// 4. 删除域名
 	resp = s.doAuthedRequest("DELETE", "/api/v1/projects/"+s.projectID+"/domains/"+s.domainID, "")
 	assert.Equal(t, http.StatusNoContent, resp.Code)
+	s.domainID = "" // 清理，避免后续测试使用已删除的域名
 }
 
 // TestMember_Invite 测试邀请成员和列表。
@@ -319,7 +323,7 @@ func (s *APITestSuite) TestMember_Invite() {
 			Total int `json:"total"`
 		} `json:"data"`
 	}
-	json.Unmarshal(resp.Body.Bytes(), &listResp)
+	_ = json.Unmarshal(resp.Body.Bytes(), &listResp)
 	assert.GreaterOrEqual(t, listResp.Data.Total, 1) // owner + invited
 }
 
@@ -332,7 +336,7 @@ func (s *APITestSuite) TestUnauthorized() {
 	var errResp struct {
 		Code int `json:"code"`
 	}
-	json.Unmarshal(resp.Body.Bytes(), &errResp)
+	_ = json.Unmarshal(resp.Body.Bytes(), &errResp)
 	assert.Equal(t, dto.CodeUnauthorized, errResp.Code)
 }
 
@@ -414,7 +418,7 @@ func (s *APITestSuite) TestInvitation_Flow() {
 			InvitationToken string `json:"invitation_token"`
 		} `json:"data"`
 	}
-	json.Unmarshal(resp.Body.Bytes(), &invResp)
+	_ = json.Unmarshal(resp.Body.Bytes(), &invResp)
 	assert.NotEmpty(t, invResp.Data.InvitationToken)
 
 	// 2. 查看邀请详情
@@ -570,7 +574,7 @@ func (s *APITestSuite) ensureLoggedIn(t *testing.T) {
 			AccessToken string `json:"access_token"`
 		} `json:"data"`
 	}
-	json.Unmarshal(resp.Body.Bytes(), &loginResp)
+	_ = json.Unmarshal(resp.Body.Bytes(), &loginResp)
 	s.accessToken = loginResp.Data.AccessToken
 }
 
@@ -585,7 +589,7 @@ func (s *APITestSuite) ensureProject(t *testing.T) {
 			ID string `json:"id"`
 		} `json:"data"`
 	}
-	json.Unmarshal(resp.Body.Bytes(), &projResp)
+	_ = json.Unmarshal(resp.Body.Bytes(), &projResp)
 	s.projectID = projResp.Data.ID
 }
 
@@ -602,7 +606,7 @@ func (s *APITestSuite) ensureDomain(t *testing.T) {
 			ID string `json:"id"`
 		} `json:"data"`
 	}
-	json.Unmarshal(resp.Body.Bytes(), &domainResp)
+	_ = json.Unmarshal(resp.Body.Bytes(), &domainResp)
 	s.domainID = domainResp.Data.ID
 }
 
