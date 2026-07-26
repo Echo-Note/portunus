@@ -67,7 +67,7 @@ func (s *DomainService) CreateDomain(ctx context.Context, input CreateDomainInpu
 	}
 
 	// 检查项目状态
-	if proj.Status != "active" {
+	if proj.Status != project.StatusActive {
 		return nil, fmt.Errorf("%w: 项目状态为 %s", ErrProjectSuspended, proj.Status)
 	}
 

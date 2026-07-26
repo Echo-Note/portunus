@@ -81,13 +81,12 @@ func main() {
 	// ── 7. 设置 Gin 路由 ──
 	gin.SetMode(cfg.Server.GinMode)
 	router := gin.New()
-	router.Use(gin.Recovery())
-	router.Use(gin.Logger())
 
 	api.RegisterRoutes(
 		router,
 		authH, projectH, domainH, proxyH, memberH, shareH, auditH,
 		userSvc, memberSvc,
+		cfg.RateLimit.RPM, cfg.RateLimit.Burst,
 	)
 
 	// ── 8. 启动 HTTP Server ──

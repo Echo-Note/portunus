@@ -154,12 +154,6 @@ func (s *ProxyService) AddUpstream(ctx context.Context, input AddUpstreamInput) 
 		weight = 1
 	}
 
-	// 获取域名信息
-	domainID, err := pc.QueryDomain().OnlyID(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("查询域名: %w", err)
-	}
-
 	u, err := s.client.Upstream.Create().
 		SetProxyConfigID(input.ProxyConfigID).
 		SetDialAddress(input.DialAddress).
@@ -176,7 +170,6 @@ func (s *ProxyService) AddUpstream(ctx context.Context, input AddUpstreamInput) 
 		slog.WarnContext(ctx, "同步上游到 Caddy 失败", "proxy_config_id", input.ProxyConfigID, "err", err)
 	}
 
-	_ = domainID // 保留以备后续使用
 
 	slog.InfoContext(ctx, "上游添加成功",
 		"upstream_id", u.ID,

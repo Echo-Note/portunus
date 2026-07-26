@@ -1,9 +1,12 @@
 // Package handler 提供 HTTP Handler 实现。
 // 严格遵守"薄 Handler"原则：只负责参数绑定、上下文提取、错误映射和响应序列化。
+// 所有响应使用 OpenAPI 定义的统一格式 {code, message, data, request_id, timestamp}。
 package handler
 
 import (
+	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -12,6 +15,29 @@ import (
 	"github.com/nrgao/portunus/internal/api/middleware"
 	"github.com/nrgao/portunus/internal/service"
 )
+
+// respond 发送统一格式的成功响应。
+func respond(c *gin.Context, status int, data any) {
+	c.JSON(status, dto.BaseResponse{
+		Code:      0,
+		Message:   "success",
+		Data:      data,
+		RequestID: middleware.GetRequestID(c),
+		Timestamp: time.Now(),
+	})
+}
+
+// respondError 发送统一格式的错误响应。
+func respondError(c *gin.Context, status int, code int, message string) {
+	c.JSON(status, dto.BaseResponse{
+		Code:      code,
+		Message:   message,
+		RequestID: middleware.GetRequestID(c),
+		Timestamp: time.Now(),
+	})
+}
+
+// ── AuthHandler ──
 
 // AuthHandler 认证相关的 HTTP Handler。
 type AuthHandler struct {
@@ -23,12 +49,11 @@ func NewAuthHandler(userSvc *service.UserService) *AuthHandler {
 	return &AuthHandler{userSvc: userSvc}
 }
 
-// Register 用户注册。
-// POST /api/v1/auth/register
+// Register 用户注册。POST /api/v1/auth/register
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req dto.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "参数校验失败", Details: err.Error()})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "参数校验失败")
 		return
 	}
 
@@ -37,22 +62,22 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		Password: req.Password,
 	})
 	if err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
+	respond(c, http.StatusCreated, gin.H{
 		"user_id": result.UserID,
 		"email":   result.Email,
 	})
 }
 
-// Login 用户登录。
-// POST /api/v1/auth/login
+// Login 用户登录。POST /api/v1/auth/login
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "参数校验失败", Details: err.Error()})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "参数校验失败")
 		return
 	}
 
@@ -61,11 +86,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		Password: req.Password,
 	})
 	if err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.TokenResponse{
+	respond(c, http.StatusOK, dto.AuthResponse{
 		AccessToken:  pair.AccessToken,
 		RefreshToken: pair.RefreshToken,
 		ExpiresAt:    pair.ExpiresAt,
@@ -73,27 +99,35 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	})
 }
 
-// RefreshToken 刷新令牌。
-// POST /api/v1/auth/refresh
+// RefreshToken 刷新令牌。POST /api/v1/auth/refresh
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req dto.RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "参数校验失败", Details: err.Error()})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "参数校验失败")
 		return
 	}
 
 	pair, err := h.userSvc.RefreshToken(c.Request.Context(), req.RefreshToken)
 	if err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.TokenResponse{
+	respond(c, http.StatusOK, dto.AuthResponse{
 		AccessToken:  pair.AccessToken,
 		RefreshToken: pair.RefreshToken,
 		ExpiresAt:    pair.ExpiresAt,
 		TokenType:    pair.TokenType,
 	})
+}
+
+// Logout 退出登录。POST /api/v1/auth/logout
+func (h *AuthHandler) Logout(c *gin.Context) {
+	// Token 撤销由客户端负责（删除本地 token），服务端仅记录日志
+	userID, _ := middleware.GetUserID(c)
+	slog.InfoContext(c.Request.Context(), "用户登出", "user_id", userID)
+	respond(c, http.StatusOK, gin.H{"message": "已退出登录"})
 }
 
 // ── ProjectHandler ──
@@ -108,12 +142,11 @@ func NewProjectHandler(projectSvc *service.ProjectService) *ProjectHandler {
 	return &ProjectHandler{projectSvc: projectSvc}
 }
 
-// Create 创建项目。
-// POST /api/v1/projects
+// Create 创建项目。POST /api/v1/projects
 func (h *ProjectHandler) Create(c *gin.Context) {
 	var req dto.CreateProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "参数校验失败", Details: err.Error()})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "参数校验失败")
 		return
 	}
 
@@ -126,11 +159,12 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 		OwnerID:     userID,
 	})
 	if err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, dto.ProjectResponse{
+	respond(c, http.StatusCreated, dto.ProjectResponse{
 		ID:          p.ID,
 		ProjectID:   p.ProjectID,
 		Name:        p.Name,
@@ -145,22 +179,22 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 	})
 }
 
-// Get 获取项目详情。
-// GET /api/v1/projects/:projectID
+// Get 获取项目详情。GET /api/v1/projects/:projectID
 func (h *ProjectHandler) Get(c *gin.Context) {
 	projectID, err := uuid.Parse(c.Param("projectID"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "无效的项目 ID"})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的项目 ID")
 		return
 	}
 
 	p, err := h.projectSvc.GetProject(c.Request.Context(), projectID)
 	if err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.ProjectResponse{
+	respond(c, http.StatusOK, dto.ProjectResponse{
 		ID:          p.ID,
 		ProjectID:   p.ProjectID,
 		Name:        p.Name,
@@ -175,20 +209,20 @@ func (h *ProjectHandler) Get(c *gin.Context) {
 	})
 }
 
-// List 列出用户的项目。
-// GET /api/v1/projects
+// List 列出用户的项目。GET /api/v1/projects
 func (h *ProjectHandler) List(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
 
 	projects, err := h.projectSvc.ListUserProjects(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
-	var result []dto.ProjectResponse
+	var items []dto.ProjectResponse
 	for _, p := range projects {
-		result = append(result, dto.ProjectResponse{
+		items = append(items, dto.ProjectResponse{
 			ID:          p.ID,
 			ProjectID:   p.ProjectID,
 			Name:        p.Name,
@@ -203,7 +237,7 @@ func (h *ProjectHandler) List(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": result, "total": len(result)})
+	respond(c, http.StatusOK, dto.ProjectListResponse{Items: items, Total: len(items)})
 }
 
 // ── DomainHandler ──
@@ -218,18 +252,17 @@ func NewDomainHandler(domainSvc *service.DomainService) *DomainHandler {
 	return &DomainHandler{domainSvc: domainSvc}
 }
 
-// Create 创建域名。
-// POST /api/v1/projects/:projectID/domains
+// Create 创建域名。POST /api/v1/projects/:projectID/domains
 func (h *DomainHandler) Create(c *gin.Context) {
 	projectID, err := uuid.Parse(c.Param("projectID"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "无效的项目 ID"})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的项目 ID")
 		return
 	}
 
 	var req dto.CreateDomainRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "参数校验失败", Details: err.Error()})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "参数校验失败")
 		return
 	}
 
@@ -239,11 +272,12 @@ func (h *DomainHandler) Create(c *gin.Context) {
 		SslEnabled: req.SSLEnabled,
 	})
 	if err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, dto.DomainResponse{
+	respond(c, http.StatusCreated, dto.DomainResponse{
 		ID:         d.ID,
 		DomainName: d.DomainName,
 		Status:     string(d.Status),
@@ -254,18 +288,18 @@ func (h *DomainHandler) Create(c *gin.Context) {
 	})
 }
 
-// List 列出项目下的域名。
-// GET /api/v1/projects/:projectID/domains
+// List 列出项目下的域名。GET /api/v1/projects/:projectID/domains
 func (h *DomainHandler) List(c *gin.Context) {
 	projectID, err := uuid.Parse(c.Param("projectID"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "无效的项目 ID"})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的项目 ID")
 		return
 	}
 
 	domains, err := h.domainSvc.ListDomainsByProject(c.Request.Context(), projectID)
 	if err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
@@ -282,25 +316,25 @@ func (h *DomainHandler) List(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": result, "total": len(result)})
+	respond(c, http.StatusOK, gin.H{"items": result, "total": len(result)})
 }
 
-// Get 获取域名详情。
-// GET /api/v1/projects/:projectID/domains/:domainID
+// Get 获取域名详情。GET /api/v1/projects/:projectID/domains/:domainID
 func (h *DomainHandler) Get(c *gin.Context) {
 	domainID, err := uuid.Parse(c.Param("domainID"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "无效的域名 ID"})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的域名 ID")
 		return
 	}
 
 	d, err := h.domainSvc.GetDomain(c.Request.Context(), domainID)
 	if err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.DomainResponse{
+	respond(c, http.StatusOK, dto.DomainResponse{
 		ID:         d.ID,
 		DomainName: d.DomainName,
 		Status:     string(d.Status),
@@ -311,21 +345,21 @@ func (h *DomainHandler) Get(c *gin.Context) {
 	})
 }
 
-// Delete 删除域名。
-// DELETE /api/v1/projects/:projectID/domains/:domainID
+// Delete 删除域名。DELETE /api/v1/projects/:projectID/domains/:domainID
 func (h *DomainHandler) Delete(c *gin.Context) {
 	domainID, err := uuid.Parse(c.Param("domainID"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "无效的域名 ID"})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的域名 ID")
 		return
 	}
 
 	if err := h.domainSvc.DeleteDomain(c.Request.Context(), domainID); err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusNoContent, nil)
+	respond(c, http.StatusNoContent, nil)
 }
 
 // ── ProxyHandler ──
@@ -340,19 +374,17 @@ func NewProxyHandler(proxySvc *service.ProxyService) *ProxyHandler {
 	return &ProxyHandler{proxySvc: proxySvc}
 }
 
-// AddUpstream 添加上游。
-// POST /api/v1/projects/:projectID/domains/:domainID/upstreams
+// AddUpstream 添加上游。POST /api/v1/projects/:projectID/domains/:domainID/proxy/upstreams
 func (h *ProxyHandler) AddUpstream(c *gin.Context) {
-	proxyConfigIDStr := c.Param("proxyConfigID")
-	proxyConfigID, err := uuid.Parse(proxyConfigIDStr)
+	proxyConfigID, err := uuid.Parse(c.Param("proxyConfigID"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "无效的代理配置 ID"})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的代理配置 ID")
 		return
 	}
 
 	var req dto.AddUpstreamRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "参数校验失败", Details: err.Error()})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "参数校验失败")
 		return
 	}
 
@@ -363,54 +395,53 @@ func (h *ProxyHandler) AddUpstream(c *gin.Context) {
 		MaxRequests:   req.MaxRequests,
 	})
 	if err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"id":             u.ID,
-		"dial_address":   u.DialAddress,
-		"weight":         u.Weight,
-		"status":         string(u.Status),
+	respond(c, http.StatusCreated, gin.H{
+		"id":              u.ID,
+		"dial_address":    u.DialAddress,
+		"weight":          u.Weight,
+		"status":          string(u.Status),
 		"proxy_config_id": u.ProxyConfigID,
 	})
 }
 
-// ListUpstreams 列出上游。
-// GET /api/v1/projects/:projectID/domains/:domainID/upstreams
+// ListUpstreams 列出上游。GET /api/v1/projects/:projectID/domains/:domainID/proxy/upstreams
 func (h *ProxyHandler) ListUpstreams(c *gin.Context) {
-	proxyConfigIDStr := c.Param("proxyConfigID")
-	proxyConfigID, err := uuid.Parse(proxyConfigIDStr)
+	proxyConfigID, err := uuid.Parse(c.Param("proxyConfigID"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "无效的代理配置 ID"})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的代理配置 ID")
 		return
 	}
 
 	upstreams, err := h.proxySvc.ListUpstreams(c.Request.Context(), proxyConfigID)
 	if err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
-	// 直接返回上游列表
-	c.JSON(http.StatusOK, gin.H{"data": upstreams, "total": len(upstreams)})
+	respond(c, http.StatusOK, gin.H{"items": upstreams, "total": len(upstreams)})
 }
 
-// RemoveUpstream 移除上游。
-// DELETE /api/v1/projects/:projectID/domains/:domainID/upstreams/:upstreamID
+// RemoveUpstream 移除上游。DELETE /api/v1/projects/:projectID/domains/:domainID/proxy/upstreams/:upstreamID
 func (h *ProxyHandler) RemoveUpstream(c *gin.Context) {
 	upstreamID, err := uuid.Parse(c.Param("upstreamID"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "无效的上游 ID"})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的上游 ID")
 		return
 	}
 
 	if err := h.proxySvc.RemoveUpstream(c.Request.Context(), upstreamID); err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusNoContent, nil)
+	respond(c, http.StatusNoContent, nil)
 }
 
 // ── MemberHandler ──
@@ -425,12 +456,11 @@ func NewMemberHandler(memberSvc *service.MemberService) *MemberHandler {
 	return &MemberHandler{memberSvc: memberSvc}
 }
 
-// Invite 邀请成员。
-// POST /api/v1/projects/:projectID/members
+// Invite 邀请成员。POST /api/v1/projects/:projectID/members
 func (h *MemberHandler) Invite(c *gin.Context) {
 	projectID, err := uuid.Parse(c.Param("projectID"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "无效的项目 ID"})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的项目 ID")
 		return
 	}
 
@@ -438,7 +468,7 @@ func (h *MemberHandler) Invite(c *gin.Context) {
 
 	var req dto.InviteMemberRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "参数校验失败", Details: err.Error()})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "参数校验失败")
 		return
 	}
 
@@ -449,60 +479,91 @@ func (h *MemberHandler) Invite(c *gin.Context) {
 		InvitedBy: userID,
 	})
 	if err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"id":            inv.ID,
-		"email":         inv.Email,
-		"role":          string(inv.Role),
-		"status":        string(inv.Status),
+	respond(c, http.StatusCreated, gin.H{
+		"id":               inv.ID,
+		"email":            inv.Email,
+		"role":             string(inv.Role),
+		"status":           string(inv.Status),
 		"invitation_token": inv.InvitationToken,
+		"expires_at":       inv.ExpiresAt,
 	})
 }
 
-// List 列出成员。
-// GET /api/v1/projects/:projectID/members
+// List 列出成员。GET /api/v1/projects/:projectID/members
 func (h *MemberHandler) List(c *gin.Context) {
 	projectID, err := uuid.Parse(c.Param("projectID"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "无效的项目 ID"})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的项目 ID")
 		return
 	}
 
 	members, err := h.memberSvc.ListMembers(c.Request.Context(), projectID)
 	if err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": members, "total": len(members)})
+	respond(c, http.StatusOK, gin.H{"items": members, "total": len(members)})
 }
 
-// Remove 移除成员。
-// DELETE /api/v1/projects/:projectID/members/:userID
+// Remove 移除成员。DELETE /api/v1/projects/:projectID/members/:userID
 func (h *MemberHandler) Remove(c *gin.Context) {
 	projectID, err := uuid.Parse(c.Param("projectID"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "无效的项目 ID"})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的项目 ID")
 		return
 	}
 
 	memberUserID, err := uuid.Parse(c.Param("userID"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "无效的用户 ID"})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的用户 ID")
 		return
 	}
 
 	actorID, _ := middleware.GetUserID(c)
 
 	if err := h.memberSvc.RemoveMember(c.Request.Context(), projectID, memberUserID, actorID); err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusNoContent, nil)
+	respond(c, http.StatusNoContent, nil)
+}
+
+// ChangeRole 变更成员角色。PATCH /api/v1/projects/:projectID/members/:userID
+func (h *MemberHandler) ChangeRole(c *gin.Context) {
+	projectID, err := uuid.Parse(c.Param("projectID"))
+	if err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的项目 ID")
+		return
+	}
+
+	memberUserID, err := uuid.Parse(c.Param("userID"))
+	if err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的用户 ID")
+		return
+	}
+
+	var req dto.ChangeRoleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "参数校验失败")
+		return
+	}
+
+	if err := h.memberSvc.ChangeMemberRole(c.Request.Context(), projectID, memberUserID, req.Role); err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	respond(c, http.StatusOK, gin.H{"message": "角色已变更"})
 }
 
 // ── ShareHandler ──
@@ -517,18 +578,17 @@ func NewShareHandler(shareSvc *service.ShareService) *ShareHandler {
 	return &ShareHandler{shareSvc: shareSvc}
 }
 
-// Create 创建共享。
-// POST /api/v1/projects/:projectID/domains/:domainID/share
+// Create 创建共享。POST /api/v1/projects/:projectID/domains/:domainID/shares
 func (h *ShareHandler) Create(c *gin.Context) {
 	domainID, err := uuid.Parse(c.Param("domainID"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "无效的域名 ID"})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的域名 ID")
 		return
 	}
 
 	var req dto.CreateShareRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "参数校验失败", Details: err.Error()})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "参数校验失败")
 		return
 	}
 
@@ -543,11 +603,12 @@ func (h *ShareHandler) Create(c *gin.Context) {
 		CreatedBy:       userID,
 	})
 	if err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
+	respond(c, http.StatusCreated, gin.H{
 		"id":                share.ID,
 		"domain_id":         share.DomainID,
 		"target_project_id": share.TargetProjectID,
@@ -556,21 +617,39 @@ func (h *ShareHandler) Create(c *gin.Context) {
 	})
 }
 
-// Revoke 撤销共享。
-// DELETE /api/v1/projects/:projectID/domains/:domainID/share/:shareID
+// List 列出域名的共享。GET /api/v1/projects/:projectID/domains/:domainID/shares
+func (h *ShareHandler) List(c *gin.Context) {
+	domainID, err := uuid.Parse(c.Param("domainID"))
+	if err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的域名 ID")
+		return
+	}
+
+	shares, err := h.shareSvc.ListSharesByDomain(c.Request.Context(), domainID)
+	if err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	respond(c, http.StatusOK, gin.H{"items": shares, "total": len(shares)})
+}
+
+// Revoke 撤销共享。DELETE /api/v1/shares/:shareID
 func (h *ShareHandler) Revoke(c *gin.Context) {
 	shareID, err := uuid.Parse(c.Param("shareID"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "无效的共享 ID"})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的共享 ID")
 		return
 	}
 
 	if err := h.shareSvc.RevokeShare(c.Request.Context(), shareID); err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusNoContent, nil)
+	respond(c, http.StatusNoContent, nil)
 }
 
 // ── AuditHandler ──
@@ -585,21 +664,29 @@ func NewAuditHandler(auditSvc *service.AuditService) *AuditHandler {
 	return &AuditHandler{auditSvc: auditSvc}
 }
 
-// List 查询审计日志。
-// GET /api/v1/projects/:projectID/audit-logs
+// List 查询审计日志。GET /api/v1/projects/:projectID/audit-logs
 func (h *AuditHandler) List(c *gin.Context) {
 	projectID, err := uuid.Parse(c.Param("projectID"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "无效的项目 ID"})
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的项目 ID")
 		return
 	}
 
+	var params dto.AuditLogQueryParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		params.Limit = 50
+	}
+
 	logs, err := h.auditSvc.Query(c.Request.Context(), service.QueryInput{
-		ProjectID: projectID,
-		Limit:     50,
+		ProjectID:    projectID,
+		Action:       params.Action,
+		ResourceType: params.ResourceType,
+		Limit:        params.Limit,
+		Offset:       params.Offset,
 	})
 	if err != nil {
-		c.JSON(mapErrorStatus(err), dto.ErrorResponse{Error: err.Error()})
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
 		return
 	}
 
@@ -618,54 +705,46 @@ func (h *AuditHandler) List(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": result, "total": len(result)})
+	respond(c, http.StatusOK, gin.H{"items": result, "total": len(result)})
 }
 
 // ── 错误映射 ──
 
-// mapErrorStatus 将业务错误映射为 HTTP 状态码。
-func mapErrorStatus(err error) int {
+// mapError 将业务错误映射为 (业务错误码, HTTP 状态码)。
+func mapError(err error) (int, int) {
 	switch {
-	case err == nil:
-		return http.StatusOK
-	case isError(err, service.ErrNotFound):
-		return http.StatusNotFound
-	case isError(err, service.ErrUnauthorized):
-		return http.StatusUnauthorized
-	case isError(err, service.ErrForbidden):
-		return http.StatusForbidden
-	case isError(err, service.ErrConcurrentModification):
-		return http.StatusConflict
-	case isError(err, service.ErrDuplicate):
-		return http.StatusConflict
-	case isError(err, service.ErrQuotaExceeded):
-		return http.StatusForbidden
-	case isError(err, service.ErrValidation):
-		return http.StatusBadRequest
-	case isError(err, service.ErrInvalidTransition):
-		return http.StatusConflict
-	case isError(err, service.ErrProjectSuspended):
-		return http.StatusForbidden
+	case isWrapped(err, service.ErrNotFound):
+		return dto.CodeNotFound, http.StatusNotFound
+	case isWrapped(err, service.ErrUnauthorized):
+		return dto.CodeUnauthorized, http.StatusUnauthorized
+	case isWrapped(err, service.ErrForbidden):
+		return dto.CodeForbidden, http.StatusForbidden
+	case isWrapped(err, service.ErrConcurrentModification):
+		return dto.CodeStateConflict, http.StatusConflict
+	case isWrapped(err, service.ErrDuplicate):
+		return dto.CodeConflict, http.StatusConflict
+	case isWrapped(err, service.ErrQuotaExceeded):
+		return dto.CodeForbidden, http.StatusForbidden
+	case isWrapped(err, service.ErrValidation):
+		return dto.CodeBadRequest, http.StatusBadRequest
+	case isWrapped(err, service.ErrInvalidTransition):
+		return dto.CodeStateConflict, http.StatusConflict
+	case isWrapped(err, service.ErrProjectSuspended):
+		return dto.CodeProjectSuspended, http.StatusForbidden
 	default:
-		return http.StatusInternalServerError
+		return dto.CodeInternalError, http.StatusInternalServerError
 	}
 }
 
-// isError 检查错误链中是否包含目标错误。
-func isError(err, target error) bool {
+// isWrapped 检查错误链中是否包含目标错误。
+func isWrapped(err, target error) bool {
 	if err == nil {
 		return false
 	}
-	return errorsIs(err, target)
-}
-
-// errorsIs 简单的错误链检查（避免依赖 errors.Is）。
-func errorsIs(err, target error) bool {
 	for {
 		if err == target {
 			return true
 		}
-		// 检查是否实现了 Unwrap
 		type unwrapper interface {
 			Unwrap() error
 		}

@@ -101,7 +101,7 @@ func (s *UserService) Register(ctx context.Context, input RegisterInput) (*Regis
 	u, err := s.client.User.Create().
 		SetEmail(input.Email).
 		SetPasswordHash(passwordHash).
-		SetStatus("pending").
+		SetStatus(user.StatusPending).
 		Save(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("创建用户: %w", err)
@@ -151,7 +151,7 @@ func (s *UserService) Login(ctx context.Context, input LoginInput) (*TokenPair, 
 	}
 
 	// 检查用户状态
-	if u.Status != "active" {
+	if u.Status != user.StatusActive {
 		return nil, fmt.Errorf("%w: 用户状态为 %s，无法登录", ErrUnauthorized, u.Status)
 	}
 
@@ -218,7 +218,7 @@ func (s *UserService) RefreshToken(ctx context.Context, refreshToken string) (*T
 		}
 		return nil, fmt.Errorf("查询用户: %w", err)
 	}
-	if u.Status != "active" {
+	if u.Status != user.StatusActive {
 		return nil, fmt.Errorf("%w: 用户状态为 %s", ErrUnauthorized, u.Status)
 	}
 
