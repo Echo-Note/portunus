@@ -5,10 +5,12 @@ package middleware
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/Echo-Note/portunus/internal/api/dto"
 	"github.com/Echo-Note/portunus/internal/service"
 )
 
@@ -18,14 +20,24 @@ func AuthMiddleware(userSvc *service.UserService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "缺少 Authorization 头"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, dto.BaseResponse{
+				Code:      dto.CodeUnauthorized,
+				Message:   "缺少 Authorization 头",
+				RequestID: GetRequestID(c),
+				Timestamp: time.Now(),
+			})
 			return
 		}
 
 		// 提取 Bearer token
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization 格式错误，应为 Bearer <token>"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, dto.BaseResponse{
+				Code:      dto.CodeUnauthorized,
+				Message:   "Authorization 格式错误，应为 Bearer <token>",
+				RequestID: GetRequestID(c),
+				Timestamp: time.Now(),
+			})
 			return
 		}
 
@@ -34,7 +46,12 @@ func AuthMiddleware(userSvc *service.UserService) gin.HandlerFunc {
 		// 验证 token
 		userID, err := userSvc.VerifyToken(c.Request.Context(), token)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "access_token 无效或已过期"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, dto.BaseResponse{
+				Code:      dto.CodeUnauthorized,
+				Message:   "access_token 无效或已过期",
+				RequestID: GetRequestID(c),
+				Timestamp: time.Now(),
+			})
 			return
 		}
 

@@ -1,0 +1,8 @@
+# Caddy 数据面配置（开发环境）
+{
+	admin 0.0.0.0:2021
+}
+
+:80 {
+	respond "Portunus Data Plane" 200
+}

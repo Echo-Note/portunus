@@ -509,7 +509,27 @@ func (h *MemberHandler) List(c *gin.Context) {
 		return
 	}
 
-	respond(c, http.StatusOK, gin.H{"items": members, "total": len(members)})
+	// 脱敏处理：移除敏感字段（如 password_hash）
+	var sanitized []gin.H
+	for _, m := range members {
+		item := gin.H{
+			"user_id":    m.UserID,
+			"project_id": m.ProjectID,
+			"role":       m.Role,
+			"status":     m.Status,
+			"joined_at":  m.JoinedAt,
+		}
+		if m.Edges.User != nil {
+			item["user"] = gin.H{
+				"id":    m.Edges.User.ID,
+				"email": m.Edges.User.Email,
+				"status": m.Edges.User.Status,
+			}
+		}
+		sanitized = append(sanitized, item)
+	}
+
+	respond(c, http.StatusOK, gin.H{"items": sanitized, "total": len(sanitized)})
 }
 
 // Remove 移除成员。DELETE /api/v1/projects/:projectID/members/:userID

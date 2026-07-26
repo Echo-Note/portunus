@@ -29,8 +29,8 @@ func Load() (*Config, error) {
 	cfg.Redis.Password = os.Getenv("REDIS_PASSWORD")
 
 	// JWT 配置
-	cfg.JWT.PrivateKey = os.Getenv("JWT_PRIVATE_KEY")
-	cfg.JWT.PublicKey = os.Getenv("JWT_PUBLIC_KEY")
+	cfg.JWT.PrivateKey = getEnvOrFile("JWT_PRIVATE_KEY", "JWT_PRIVATE_KEY_FILE", "")
+	cfg.JWT.PublicKey = getEnvOrFile("JWT_PUBLIC_KEY", "JWT_PUBLIC_KEY_FILE", "")
 	cfg.JWT.AccessTokenTTL = getEnvDuration("JWT_ACCESS_TOKEN_TTL", 15*time.Minute)
 	cfg.JWT.RefreshTokenTTL = getEnvDuration("JWT_REFRESH_TOKEN_TTL", 168*time.Hour)
 
@@ -118,6 +118,20 @@ func getEnvDuration(key string, defaultVal time.Duration) time.Duration {
 	if val := os.Getenv(key); val != "" {
 		if d, err := time.ParseDuration(val); err == nil {
 			return d
+		}
+	}
+	return defaultVal
+}
+
+// getEnvOrFile 优先从 key 环境变量读取值，如果为空则从 fileKey 读取文件内容。
+func getEnvOrFile(key, fileKey, defaultVal string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	if filePath := os.Getenv(fileKey); filePath != "" {
+		data, err := os.ReadFile(filePath)
+		if err == nil {
+			return string(data)
 		}
 	}
 	return defaultVal

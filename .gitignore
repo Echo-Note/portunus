@@ -57,9 +57,13 @@ temp/
 # Docker
 docker-compose.override.yml
 
+# 开发工具
+cmd/migrate/
+
 # Claude Code
 .claude/
 .codebuddy/
 
 # Playwright MCP
-.playwright-mcp/
+.playwright-mcp/certs/jwt-*.pem
+certs/*.pem

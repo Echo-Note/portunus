@@ -11,13 +11,11 @@ services:
     ports:
       - "80:80"      # HTTP
       - "443:443"    # HTTPS
-      # Admin API (:2021) 仅容器内网络访问，不暴露到宿主机
-      # 如需调试: - "127.0.0.1:2021:2021"
+      - "127.0.0.1:2021:2021"  # Admin API（开发调试）
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-      - ../certs:/certs:ro
     healthcheck:
       test: ["CMD", "caddy", "version"]
       interval: 30s
