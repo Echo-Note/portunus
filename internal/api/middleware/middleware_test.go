@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -65,7 +66,7 @@ func TestAuthMiddleware_MissingHeader(t *testing.T) {
 		c.JSON(200, gin.H{"ok": true})
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(),"GET", "/test", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -79,7 +80,7 @@ func TestAuthMiddleware_InvalidFormat(t *testing.T) {
 		c.JSON(200, gin.H{"ok": true})
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(),"GET", "/test", nil)
 	req.Header.Set("Authorization", "InvalidFormat")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -94,7 +95,7 @@ func TestAuthMiddleware_InvalidToken(t *testing.T) {
 		c.JSON(200, gin.H{"ok": true})
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(),"GET", "/test", nil)
 	req.Header.Set("Authorization", "Bearer invalid-token")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -131,7 +132,7 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 		c.JSON(200, gin.H{"user_id": userID.String()})
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(),"GET", "/test", nil)
 	req.Header.Set("Authorization", "Bearer "+pair.AccessToken)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -149,7 +150,7 @@ func TestRequestID(t *testing.T) {
 		c.JSON(200, gin.H{"request_id": id})
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(),"GET", "/test", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -167,7 +168,7 @@ func TestRequestID_PreserveExisting(t *testing.T) {
 		c.JSON(200, gin.H{"request_id": id})
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(),"GET", "/test", nil)
 	req.Header.Set("X-Request-ID", "my-custom-id")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -183,7 +184,7 @@ func TestCORS(t *testing.T) {
 		c.String(200, "ok")
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(),"GET", "/test", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -198,7 +199,7 @@ func TestCORSOptions(t *testing.T) {
 		c.String(200, "ok")
 	})
 
-	req := httptest.NewRequest("OPTIONS", "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(),"OPTIONS", "/test", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -215,14 +216,14 @@ func TestRateLimit(t *testing.T) {
 
 	// 在 burst 范围内应全部通过
 	for i := 0; i < 5; i++ {
-		req := httptest.NewRequest("GET", "/test", nil)
+		req := httptest.NewRequestWithContext(context.Background(),"GET", "/test", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code, "请求 %d 应通过", i+1)
 	}
 
 	// 第 6 个请求应被限流
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(),"GET", "/test", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusTooManyRequests, w.Code, "burst 超出后应被限流")
@@ -237,7 +238,7 @@ func TestProjectContext(t *testing.T) {
 		c.JSON(200, gin.H{"project_id": pid.String()})
 	})
 
-	req := httptest.NewRequest("GET", "/projects/00000000-0000-0000-0000-000000000001/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(),"GET", "/projects/00000000-0000-0000-0000-000000000001/test", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -253,7 +254,7 @@ func TestGetUserID_NotSet(t *testing.T) {
 		c.String(200, "ok")
 	})
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(),"GET", "/test", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)

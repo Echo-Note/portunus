@@ -517,7 +517,7 @@ func (s *APITestSuite) doRequest(method, path, body string) *httptest.ResponseRe
 	if body != "" {
 		r = bytes.NewBufferString(body)
 	}
-	req := httptest.NewRequest(method, path, r)
+	req := httptest.NewRequestWithContext(context.Background(), method, path, r)
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	s.router.ServeHTTP(w, req)
@@ -530,7 +530,7 @@ func (s *APITestSuite) doAuthedRequest(method, path, body string) *httptest.Resp
 	if body != "" {
 		r = bytes.NewBufferString(body)
 	}
-	req := httptest.NewRequest(method, path, r)
+	req := httptest.NewRequestWithContext(context.Background(), method, path, r)
 	req.Header.Set("Content-Type", "application/json")
 	if s.accessToken != "" {
 		req.Header.Set("Authorization", "Bearer "+s.accessToken)
