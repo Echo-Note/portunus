@@ -67,3 +67,4 @@ cmd/migrate/
 # Playwright MCP
 .playwright-mcp/certs/jwt-*.pem
 certs/*.pem
+.golangci.bck.yml
