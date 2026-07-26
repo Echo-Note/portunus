@@ -29,10 +29,10 @@ func NewProjectService(client *generated.Client, sm *StateMachine) *ProjectServi
 
 // CreateProjectInput 创建项目输入参数。
 type CreateProjectInput struct {
-	ProjectID   string    `json:"project_id"`   // 必填，项目唯一标识
-	Name        string    `json:"name"`         // 必填，项目名称
-	Description string    `json:"description"`  // 可选，项目描述
-	OwnerID     uuid.UUID `json:"owner_id"`     // 必填，创建者用户 ID
+	ProjectID   string    `json:"project_id"`  // 必填，项目唯一标识
+	Name        string    `json:"name"`        // 必填，项目名称
+	Description string    `json:"description"` // 可选，项目描述
+	OwnerID     uuid.UUID `json:"owner_id"`    // 必填，创建者用户 ID
 }
 
 // CreateProject 创建新项目，同时创建 owner 成员记录。

@@ -170,7 +170,6 @@ func (s *ProxyService) AddUpstream(ctx context.Context, input AddUpstreamInput) 
 		slog.WarnContext(ctx, "同步上游到 Caddy 失败", "proxy_config_id", input.ProxyConfigID, "err", err)
 	}
 
-
 	slog.InfoContext(ctx, "上游添加成功",
 		"upstream_id", u.ID,
 		"proxy_config_id", input.ProxyConfigID,
@@ -339,7 +338,7 @@ func (s *ProxyService) GetUpstreamStatus(ctx context.Context, domainID uuid.UUID
 	}
 
 	// 合并数据库和 Caddy 状态
-	var result []UpstreamStatus
+	result := make([]UpstreamStatus, 0, len(upstreams))
 	for _, u := range upstreams {
 		status := UpstreamStatus{
 			UpstreamID:  u.ID,
@@ -383,7 +382,7 @@ func (s *ProxyService) syncUpstreamsToCaddy(ctx context.Context, caddyProxyID st
 		return fmt.Errorf("查询上游列表: %w", err)
 	}
 
-	var dials []map[string]any
+	dials := make([]map[string]any, 0, len(upstreams))
 	for _, u := range upstreams {
 		dial := map[string]any{
 			"dial": u.DialAddress,

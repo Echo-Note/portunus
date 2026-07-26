@@ -90,10 +90,10 @@ func TestValidateTransition_Illegal(t *testing.T) {
 		to         string
 	}{
 		// ── 项目非法转换 ──
-		{entityType: "project", from: "deleted", to: "active"},     // 终态不可恢复
-		{entityType: "project", from: "deleted", to: "suspended"},  // 终态不可恢复
-		{entityType: "project", from: "active", to: "error"},       // 未定义
-		{entityType: "project", from: "suspended", to: "error"},    // 未定义
+		{entityType: "project", from: "deleted", to: "active"},    // 终态不可恢复
+		{entityType: "project", from: "deleted", to: "suspended"}, // 终态不可恢复
+		{entityType: "project", from: "active", to: "error"},      // 未定义
+		{entityType: "project", from: "suspended", to: "error"},   // 未定义
 
 		// ── 域名非法转换 ──
 		{entityType: "domain", from: "creating", to: "disabled"}, // 不能跳过 active
@@ -110,12 +110,12 @@ func TestValidateTransition_Illegal(t *testing.T) {
 		{entityType: "proxy_config", from: "degraded", to: "updating"}, // 未定义
 
 		// ── 上游非法转换 ──
-		{entityType: "upstream", from: "removed", to: "active"},   // 终态不可恢复
-			{entityType: "upstream", from: "removed", to: "unhealthy"}, // 终态不可恢复
+		{entityType: "upstream", from: "removed", to: "active"},    // 终态不可恢复
+		{entityType: "upstream", from: "removed", to: "unhealthy"}, // 终态不可恢复
 
 		// ── 成员非法转换 ──
-		{entityType: "member", from: "removed", to: "active"}, // 终态不可恢复
-		{entityType: "member", from: "left", to: "active"},    // 终态不可恢复
+		{entityType: "member", from: "removed", to: "active"},  // 终态不可恢复
+		{entityType: "member", from: "left", to: "active"},     // 终态不可恢复
 		{entityType: "member", from: "pending", to: "removed"}, // 未定义
 
 		// ── 共享非法转换 ──

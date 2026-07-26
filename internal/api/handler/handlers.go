@@ -277,7 +277,7 @@ func (h *ProjectHandler) List(c *gin.Context) {
 		return
 	}
 
-	var items []dto.ProjectResponse
+	items := make([]dto.ProjectResponse, 0, len(projects))
 	for _, p := range projects {
 		items = append(items, dto.ProjectResponse{
 			ID:          p.ID,
@@ -456,7 +456,7 @@ func (h *DomainHandler) List(c *gin.Context) {
 		return
 	}
 
-	var result []dto.DomainResponse
+	result := make([]dto.DomainResponse, 0, len(domains))
 	for _, d := range domains {
 		result = append(result, dto.DomainResponse{
 			ID:         d.ID,
@@ -732,7 +732,7 @@ func (h *ProxyHandler) GetUpstreamStatus(c *gin.Context) {
 		return
 	}
 
-	var items []dto.UpstreamStatusResponse
+	items := make([]dto.UpstreamStatusResponse, 0, len(statuses))
 	for _, s := range statuses {
 		items = append(items, dto.UpstreamStatusResponse{
 			UpstreamID:  s.UpstreamID,
@@ -812,7 +812,7 @@ func (h *MemberHandler) List(c *gin.Context) {
 	}
 
 	// 脱敏处理：移除敏感字段（如 password_hash）
-	var sanitized []gin.H
+	sanitized := make([]gin.H, 0, len(members))
 	for _, m := range members {
 		item := gin.H{
 			"user_id":    m.UserID,
@@ -823,8 +823,8 @@ func (h *MemberHandler) List(c *gin.Context) {
 		}
 		if m.Edges.User != nil {
 			item["user"] = gin.H{
-				"id":    m.Edges.User.ID,
-				"email": m.Edges.User.Email,
+				"id":     m.Edges.User.ID,
+				"email":  m.Edges.User.Email,
 				"status": m.Edges.User.Status,
 			}
 		}
@@ -1073,7 +1073,7 @@ func (h *ShareHandler) ListReceived(c *gin.Context) {
 		return
 	}
 
-	var items []dto.ShareResponse
+	items := make([]dto.ShareResponse, 0, len(shares))
 	for _, s := range shares {
 		var expiresAt *time.Time
 		if !s.ExpiresAt.IsZero() {
@@ -1204,7 +1204,7 @@ func (h *AuditHandler) List(c *gin.Context) {
 		return
 	}
 
-	var result []dto.AuditLogResponse
+	result := make([]dto.AuditLogResponse, 0, len(logs))
 	for _, l := range logs {
 		result = append(result, dto.AuditLogResponse{
 			ID:           l.ID,

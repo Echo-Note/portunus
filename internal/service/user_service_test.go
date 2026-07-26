@@ -21,26 +21,26 @@ func setupUserService(t *testing.T) (*UserService, context.Context) {
 	ctx := context.Background()
 
 	cfg := config.DatabaseConfig{
-		URL:             "postgres://portunus:portunus@localhost:5432/portunus?sslmode=disable",
-		MaxOpenConns:    5,
-		MaxIdleConns:    2,
+		URL:          "postgres://portunus:portunus@localhost:5432/portunus?sslmode=disable",
+		MaxOpenConns: 5,
+		MaxIdleConns: 2,
 	}
 	client, err := config.NewEntClient(ctx, cfg)
 	require.NoError(t, err, "数据库连接失败")
 
 	// 清理测试数据（按外键依赖顺序）
-	client.CaddyIDMapping.Delete().Exec(ctx) //nolint:errcheck
-	client.Upstream.Delete().Exec(ctx) //nolint:errcheck
-	client.ProxyConfig.Delete().Exec(ctx) //nolint:errcheck
-	client.DomainShare.Delete().Exec(ctx) //nolint:errcheck
-	client.Domain.Delete().Exec(ctx) //nolint:errcheck
+	client.CaddyIDMapping.Delete().Exec(ctx)  //nolint:errcheck
+	client.Upstream.Delete().Exec(ctx)        //nolint:errcheck
+	client.ProxyConfig.Delete().Exec(ctx)     //nolint:errcheck
+	client.DomainShare.Delete().Exec(ctx)     //nolint:errcheck
+	client.Domain.Delete().Exec(ctx)          //nolint:errcheck
 	client.ProjectAuditLog.Delete().Exec(ctx) //nolint:errcheck
-	client.Invitation.Delete().Exec(ctx) //nolint:errcheck
-	client.ProjectMember.Delete().Exec(ctx) //nolint:errcheck
-	client.Project.Delete().Exec(ctx) //nolint:errcheck
-	client.ApiToken.Delete().Exec(ctx) //nolint:errcheck
+	client.Invitation.Delete().Exec(ctx)      //nolint:errcheck
+	client.ProjectMember.Delete().Exec(ctx)   //nolint:errcheck
+	client.ApiToken.Delete().Exec(ctx)       //nolint:errcheck
 	client.ConfigSnapshot.Delete().Exec(ctx) //nolint:errcheck
-	client.User.Delete().Exec(ctx) //nolint:errcheck
+	client.Project.Delete().Exec(ctx)  //nolint:errcheck
+	client.User.Delete().Exec(ctx)            //nolint:errcheck
 
 	jwtCfg := config.JWTConfig{
 		AccessTokenTTL:  15 * time.Minute,

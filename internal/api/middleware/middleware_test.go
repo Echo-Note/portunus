@@ -20,9 +20,9 @@ func setupMiddlewareTest(t *testing.T) (*gin.Engine, *service.UserService) {
 	gin.SetMode(gin.TestMode)
 
 	cfg := config.DatabaseConfig{
-		URL:             "postgres://portunus:portunus@localhost:5432/portunus?sslmode=disable",
-		MaxOpenConns:    5,
-		MaxIdleConns:    2,
+		URL:          "postgres://portunus:portunus@localhost:5432/portunus?sslmode=disable",
+		MaxOpenConns: 5,
+		MaxIdleConns: 2,
 	}
 	client, err := config.NewEntClient(t.Context(), cfg)
 	require.NoError(t, err)

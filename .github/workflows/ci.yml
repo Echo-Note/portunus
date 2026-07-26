@@ -75,12 +75,14 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U portunus"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
     env:
       DATABASE_URL: postgres://portunus:portunus@localhost:5432/portunus?sslmode=disable
+      PGUSER: portunus
+      PGPASSWORD: portunus
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -174,7 +176,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U portunus"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5

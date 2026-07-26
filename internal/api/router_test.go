@@ -29,10 +29,10 @@ import (
 // 使用真实的数据库和完整的中间件链路。
 type APITestSuite struct {
 	suite.Suite
-	router     *gin.Engine
-	userSvc    *service.UserService
-	memberSvc  *service.MemberService
-	client     *generated.Client
+	router      *gin.Engine
+	userSvc     *service.UserService
+	memberSvc   *service.MemberService
+	client      *generated.Client
 	accessToken string
 	projectID   string
 	domainID    string
@@ -45,27 +45,27 @@ func (s *APITestSuite) SetupSuite() {
 	// 连接数据库
 	ctx := s.ctx()
 	cfg := config.DatabaseConfig{
-		URL:             getEnvOrDefault("DATABASE_URL", "postgres://portunus:portunus@localhost:5432/portunus?sslmode=disable"),
-		MaxOpenConns:    5,
-		MaxIdleConns:    2,
+		URL:          getEnvOrDefault("DATABASE_URL", "postgres://portunus:portunus@localhost:5432/portunus?sslmode=disable"),
+		MaxOpenConns: 5,
+		MaxIdleConns: 2,
 	}
 	client, err := config.NewEntClient(ctx, cfg)
 	require.NoError(s.T(), err, "数据库连接失败，请确保 Docker 服务已启动")
 	s.client = client
 
 	// 清理测试数据（按外键依赖顺序删除）
-	client.CaddyIDMapping.Delete().Exec(ctx) //nolint:errcheck
-	client.Upstream.Delete().Exec(ctx) //nolint:errcheck
-	client.ProxyConfig.Delete().Exec(ctx) //nolint:errcheck
-	client.DomainShare.Delete().Exec(ctx) //nolint:errcheck
-	client.Domain.Delete().Exec(ctx) //nolint:errcheck
+	client.CaddyIDMapping.Delete().Exec(ctx)  //nolint:errcheck
+	client.Upstream.Delete().Exec(ctx)        //nolint:errcheck
+	client.ProxyConfig.Delete().Exec(ctx)     //nolint:errcheck
+	client.DomainShare.Delete().Exec(ctx)     //nolint:errcheck
+	client.Domain.Delete().Exec(ctx)          //nolint:errcheck
 	client.ProjectAuditLog.Delete().Exec(ctx) //nolint:errcheck
-	client.Invitation.Delete().Exec(ctx) //nolint:errcheck
-	client.ProjectMember.Delete().Exec(ctx) //nolint:errcheck
-	client.Project.Delete().Exec(ctx) //nolint:errcheck
-	client.ApiToken.Delete().Exec(ctx) //nolint:errcheck
+	client.Invitation.Delete().Exec(ctx)      //nolint:errcheck
+	client.ProjectMember.Delete().Exec(ctx)   //nolint:errcheck
+	client.ApiToken.Delete().Exec(ctx)       //nolint:errcheck
 	client.ConfigSnapshot.Delete().Exec(ctx) //nolint:errcheck
-	client.User.Delete().Exec(ctx) //nolint:errcheck
+	client.Project.Delete().Exec(ctx)  //nolint:errcheck
+	client.User.Delete().Exec(ctx)            //nolint:errcheck
 
 	// 初始化 JWT 配置
 	jwtCfg := config.JWTConfig{

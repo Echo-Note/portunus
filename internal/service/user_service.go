@@ -24,8 +24,8 @@ import (
 // UserService 处理用户相关的业务逻辑。
 // 所有方法接收 context.Context 和普通结构体，不依赖任何 Web 框架。
 type UserService struct {
-	client    *generated.Client
-	jwtCfg    config.JWTConfig
+	client     *generated.Client
+	jwtCfg     config.JWTConfig
 	privateKey *rsa.PrivateKey
 	publicKey  *rsa.PublicKey
 }
@@ -326,11 +326,11 @@ func (s *UserService) issueTokenPair(ctx context.Context, userID uuid.UUID) (*To
 
 	// 签发 access_token
 	accessClaims := jwt.MapClaims{
-		"sub":   userID.String(),
-		"type":  "access",
-		"iat":   now.Unix(),
-		"exp":   accessExpiry.Unix(),
-		"jti":   uuid.New().String(),
+		"sub":  userID.String(),
+		"type": "access",
+		"iat":  now.Unix(),
+		"exp":  accessExpiry.Unix(),
+		"jti":  uuid.New().String(),
 	}
 	accessToken, err := jwt.NewWithClaims(jwt.SigningMethodRS256, accessClaims).SignedString(s.privateKey)
 	if err != nil {
@@ -339,11 +339,11 @@ func (s *UserService) issueTokenPair(ctx context.Context, userID uuid.UUID) (*To
 
 	// 签发 refresh_token
 	refreshClaims := jwt.MapClaims{
-		"sub":   userID.String(),
-		"type":  "refresh",
-		"iat":   now.Unix(),
-		"exp":   refreshExpiry.Unix(),
-		"jti":   uuid.New().String(),
+		"sub":  userID.String(),
+		"type": "refresh",
+		"iat":  now.Unix(),
+		"exp":  refreshExpiry.Unix(),
+		"jti":  uuid.New().String(),
 	}
 	refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodRS256, refreshClaims).SignedString(s.privateKey)
 	if err != nil {

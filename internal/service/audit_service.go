@@ -24,25 +24,25 @@ func NewAuditService(client *generated.Client) *AuditService {
 
 // CreateAuditLogInput 创建审计日志输入参数。
 type CreateAuditLogInput struct {
-	ProjectID      uuid.UUID                      `json:"project_id"`      // 必填，所属项目 ID
-	ActorType      projectauditlog.ActorType      `json:"actor_type"`      // 必填，操作者类型
-	ActorID        uuid.UUID                      `json:"actor_id"`        // 可选，操作者 ID
-	ActorName      string                         `json:"actor_name"`      // 可选，操作者名称
-	ActorIP        string                         `json:"actor_ip"`        // 可选，操作者 IP
-	Action         string                         `json:"action"`          // 必填，操作类型
-	ResourceType   string                         `json:"resource_type"`   // 必填，资源类型
-	ResourceID     string                         `json:"resource_id"`     // 可选，资源 ID
-	ChangesBefore  map[string]any                 `json:"changes_before"`  // 可选，变更前数据
-	ChangesAfter   map[string]any                 `json:"changes_after"`   // 可选，变更后数据
-	Result         projectauditlog.Result         `json:"result"`          // 必填，操作结果
-	ErrorMessage   string                         `json:"error_message"`   // 可选，错误信息
-	Via            projectauditlog.Via            `json:"via"`             // 必填，调用来源
-	McpToolName    string                         `json:"mcp_tool_name"`   // 可选，MCP 工具名称
-	UserAgent      string                         `json:"user_agent"`      // 可选，User-Agent
-	RequestBody    map[string]any                 `json:"request_body"`    // 可选，请求体
-	ResponseStatus int                            `json:"response_status"` // 可选，HTTP 响应状态码
-	RequestID      string                         `json:"request_id"`      // 可选，请求 ID
-	CorrelationID  string                         `json:"correlation_id"`  // 可选，关联 ID
+	ProjectID      uuid.UUID                 `json:"project_id"`      // 必填，所属项目 ID
+	ActorType      projectauditlog.ActorType `json:"actor_type"`      // 必填，操作者类型
+	ActorID        uuid.UUID                 `json:"actor_id"`        // 可选，操作者 ID
+	ActorName      string                    `json:"actor_name"`      // 可选，操作者名称
+	ActorIP        string                    `json:"actor_ip"`        // 可选，操作者 IP
+	Action         string                    `json:"action"`          // 必填，操作类型
+	ResourceType   string                    `json:"resource_type"`   // 必填，资源类型
+	ResourceID     string                    `json:"resource_id"`     // 可选，资源 ID
+	ChangesBefore  map[string]any            `json:"changes_before"`  // 可选，变更前数据
+	ChangesAfter   map[string]any            `json:"changes_after"`   // 可选，变更后数据
+	Result         projectauditlog.Result    `json:"result"`          // 必填，操作结果
+	ErrorMessage   string                    `json:"error_message"`   // 可选，错误信息
+	Via            projectauditlog.Via       `json:"via"`             // 必填，调用来源
+	McpToolName    string                    `json:"mcp_tool_name"`   // 可选，MCP 工具名称
+	UserAgent      string                    `json:"user_agent"`      // 可选，User-Agent
+	RequestBody    map[string]any            `json:"request_body"`    // 可选，请求体
+	ResponseStatus int                       `json:"response_status"` // 可选，HTTP 响应状态码
+	RequestID      string                    `json:"request_id"`      // 可选，请求 ID
+	CorrelationID  string                    `json:"correlation_id"`  // 可选，关联 ID
 }
 
 // Log 写入一条审计日志。

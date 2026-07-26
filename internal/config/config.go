@@ -8,16 +8,16 @@ import (
 
 // Config 应用顶层配置，聚合所有子配置。
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Redis    RedisConfig
-	JWT      JWTConfig
-	Caddy    CaddyConfig
-	MinIO    MinIOConfig
-	SMTP     SMTPConfig
-	OAuth    OAuthConfig
-	AI       AIConfig
-	Observ   ObservabilityConfig
+	Server    ServerConfig
+	Database  DatabaseConfig
+	Redis     RedisConfig
+	JWT       JWTConfig
+	Caddy     CaddyConfig
+	MinIO     MinIOConfig
+	SMTP      SMTPConfig
+	OAuth     OAuthConfig
+	AI        AIConfig
+	Observ    ObservabilityConfig
 	RateLimit RateLimitConfig
 }
 
@@ -90,15 +90,15 @@ type OAuthConfig struct {
 
 // AIConfig AI Agent 配置。
 type AIConfig struct {
-	OpenAIAPIKey     string
-	OpenAIModel      string
+	OpenAIAPIKey      string
+	OpenAIModel       string
 	EinoAgentMaxTurns int
 }
 
 // ObservabilityConfig 可观测性配置。
 type ObservabilityConfig struct {
-	OTELExporterEndpoint string
-	OTELServiceName      string
+	OTELExporterEndpoint  string
+	OTELServiceName       string
 	PrometheusMetricsPort string
 }
 

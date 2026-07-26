@@ -165,19 +165,19 @@ type UpdateUserRequest struct {
 
 // CreateTokenRequest 创建 API Token 请求。
 type CreateTokenRequest struct {
-	Name      string   `json:"name" binding:"required"`
+	Name      string    `json:"name" binding:"required"`
 	ProjectID uuid.UUID `json:"project_id" binding:"required"`
-	Scopes    []string `json:"scopes"`
+	Scopes    []string  `json:"scopes"`
 }
 
 // CreateTokenResponse 创建 API Token 响应。
 type CreateTokenResponse struct {
-	Token      string    `json:"token"`
-	TokenID    uuid.UUID `json:"token_id"`
-	TokenPrefix string   `json:"token_prefix"`
-	Name       string    `json:"name"`
-	ProjectID  uuid.UUID `json:"project_id"`
-	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+	Token       string     `json:"token"`
+	TokenID     uuid.UUID  `json:"token_id"`
+	TokenPrefix string     `json:"token_prefix"`
+	Name        string     `json:"name"`
+	ProjectID   uuid.UUID  `json:"project_id"`
+	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
 }
 
 // ── 项目 ──
