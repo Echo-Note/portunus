@@ -10,17 +10,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Echo-Note/portunus/ent/generated/user"
 	"github.com/Echo-Note/portunus/internal/config"
 )
 
 // setupUserService 创建测试用 UserService 实例。
-// 使用已有的测试数据库连接。
 func setupUserService(t *testing.T) (*UserService, context.Context) {
 	t.Helper()
 
 	ctx := context.Background()
 
-	// 连接测试数据库
 	cfg := config.DatabaseConfig{
 		URL:             "postgres://portunus:portunus@localhost:5432/portunus?sslmode=disable",
 		MaxOpenConns:    5,
@@ -29,18 +28,25 @@ func setupUserService(t *testing.T) (*UserService, context.Context) {
 	client, err := config.NewEntClient(ctx, cfg)
 	require.NoError(t, err, "数据库连接失败")
 
-	// 清理测试数据
+	// 清理测试数据（按外键依赖顺序）
+	client.CaddyIDMapping.Delete().Exec(ctx) //nolint:errcheck
+	client.Upstream.Delete().Exec(ctx) //nolint:errcheck
+	client.ProxyConfig.Delete().Exec(ctx) //nolint:errcheck
+	client.DomainShare.Delete().Exec(ctx) //nolint:errcheck
+	client.Domain.Delete().Exec(ctx) //nolint:errcheck
+	client.ProjectAuditLog.Delete().Exec(ctx) //nolint:errcheck
+	client.Invitation.Delete().Exec(ctx) //nolint:errcheck
 	client.ProjectMember.Delete().Exec(ctx) //nolint:errcheck
 	client.Project.Delete().Exec(ctx) //nolint:errcheck
+	client.ApiToken.Delete().Exec(ctx) //nolint:errcheck
+	client.ConfigSnapshot.Delete().Exec(ctx) //nolint:errcheck
 	client.User.Delete().Exec(ctx) //nolint:errcheck
 
-	// 生成 JWT 密钥对
 	jwtCfg := config.JWTConfig{
 		AccessTokenTTL:  15 * time.Minute,
 		RefreshTokenTTL: 168 * time.Hour,
 	}
 
-	// 从文件读取 JWT 密钥
 	privateKeyFile := os.Getenv("JWT_PRIVATE_KEY_FILE")
 	if privateKeyFile == "" {
 		privateKeyFile = "../../certs/jwt-private.pem"
@@ -67,6 +73,16 @@ func setupUserService(t *testing.T) (*UserService, context.Context) {
 	return svc, ctx
 }
 
+// activateUser 通过邮箱激活用户。
+func activateUser(ctx context.Context, t *testing.T, svc *UserService, email string) {
+	t.Helper()
+	_, err := svc.client.User.Update().
+		Where(user.EmailEQ(email)).
+		SetStatus(user.StatusActive).
+		Save(ctx)
+	require.NoError(t, err)
+}
+
 // TestUserService_Register_Success 测试成功注册。
 func TestUserService_Register_Success(t *testing.T) {
 	svc, ctx := setupUserService(t)
@@ -79,6 +95,11 @@ func TestUserService_Register_Success(t *testing.T) {
 	require.NotNil(t, result)
 	assert.NotEqual(t, "", result.UserID.String())
 	assert.Equal(t, "newuser@test.com", result.Email)
+
+	// 验证用户状态为 pending
+	u, err := svc.GetUser(ctx, result.UserID)
+	require.NoError(t, err)
+	assert.Equal(t, user.StatusPending, u.Status)
 }
 
 // TestUserService_Register_Duplicate 测试重复注册。
@@ -91,7 +112,6 @@ func TestUserService_Register_Duplicate(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// 重复注册应失败
 	_, err = svc.Register(ctx, RegisterInput{
 		Email:    "dup@test.com",
 		Password: "password123",
@@ -130,21 +150,14 @@ func TestUserService_Register_Validation(t *testing.T) {
 func TestUserService_Login_Success(t *testing.T) {
 	svc, ctx := setupUserService(t)
 
-	// 注册用户
 	_, err := svc.Register(ctx, RegisterInput{
 		Email:    "login@test.com",
 		Password: "password123",
 	})
 	require.NoError(t, err)
 
-	// 手动激活用户
-	users, err := svc.client.User.Query().All(ctx)
-	require.NoError(t, err)
-	require.NotEmpty(t, users)
-	_, err = users[0].Update().SetStatus("active").Save(ctx)
-	require.NoError(t, err)
+	activateUser(ctx, t, svc, "login@test.com")
 
-	// 登录
 	pair, err := svc.Login(ctx, LoginInput{
 		Email:    "login@test.com",
 		Password: "password123",
@@ -154,6 +167,11 @@ func TestUserService_Login_Success(t *testing.T) {
 	assert.NotEmpty(t, pair.AccessToken)
 	assert.NotEmpty(t, pair.RefreshToken)
 	assert.Equal(t, "Bearer", pair.TokenType)
+
+	// 验证 token 可被解析
+	userID, err := svc.VerifyToken(ctx, pair.AccessToken)
+	require.NoError(t, err)
+	assert.NotEqual(t, uuid.Nil, userID)
 }
 
 // TestUserService_Login_WrongPassword 测试错误密码。
@@ -166,11 +184,7 @@ func TestUserService_Login_WrongPassword(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// 激活用户
-	users, _ := svc.client.User.Query().All(ctx)
-	if len(users) > 0 {
-		users[0].Update().SetStatus("active").Save(ctx) //nolint:errcheck
-	}
+	activateUser(ctx, t, svc, "wrongpass@test.com")
 
 	_, err = svc.Login(ctx, LoginInput{
 		Email:    "wrongpass@test.com",
@@ -190,13 +204,36 @@ func TestUserService_Login_NotActive(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// 不激活，直接登录
 	_, err = svc.Login(ctx, LoginInput{
 		Email:    "pending@test.com",
 		Password: "password123",
 	})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrUnauthorized)
+}
+
+// TestUserService_RefreshToken 测试刷新令牌。
+func TestUserService_RefreshToken(t *testing.T) {
+	svc, ctx := setupUserService(t)
+
+	_, err := svc.Register(ctx, RegisterInput{
+		Email:    "refresh@test.com",
+		Password: "password123",
+	})
+	require.NoError(t, err)
+
+	activateUser(ctx, t, svc, "refresh@test.com")
+
+	pair, err := svc.Login(ctx, LoginInput{
+		Email:    "refresh@test.com",
+		Password: "password123",
+	})
+	require.NoError(t, err)
+
+	newPair, err := svc.RefreshToken(ctx, pair.RefreshToken)
+	require.NoError(t, err)
+	assert.NotEmpty(t, newPair.AccessToken)
+	assert.NotEmpty(t, newPair.RefreshToken)
 }
 
 // TestUserService_GetUser 测试获取用户信息。
@@ -228,9 +265,8 @@ func TestHashPassword(t *testing.T) {
 	hash, err := hashPassword("mypassword")
 	require.NoError(t, err)
 	assert.NotEmpty(t, hash)
-	assert.Contains(t, hash, ":") // 格式应为 "salt:hash"
+	assert.Contains(t, hash, ":")
 
-	// 验证密码
 	assert.True(t, verifyPassword("mypassword", hash))
 	assert.False(t, verifyPassword("wrongpassword", hash))
 }

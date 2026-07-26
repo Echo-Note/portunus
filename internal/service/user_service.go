@@ -266,6 +266,15 @@ func (s *UserService) GetUser(ctx context.Context, id uuid.UUID) (*generated.Use
 	return u, nil
 }
 
+// ActivateUserByEmail 通过邮箱激活用户（用于测试和邮箱验证）。
+func (s *UserService) ActivateUserByEmail(ctx context.Context, email string) error {
+	_, err := s.client.User.Update().
+		Where(user.EmailEQ(email)).
+		SetStatus(user.StatusActive).
+		Save(ctx)
+	return err
+}
+
 // issueTokenPair 签发 JWT 令牌对。
 func (s *UserService) issueTokenPair(ctx context.Context, userID uuid.UUID) (*TokenPair, error) {
 	now := time.Now()
