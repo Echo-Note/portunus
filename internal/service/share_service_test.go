@@ -36,9 +36,9 @@ func setupShareService(t *testing.T) (*ShareService, *DomainService, *ProjectSer
 	client.ProjectAuditLog.Delete().Exec(ctx) //nolint:errcheck
 	client.Invitation.Delete().Exec(ctx)      //nolint:errcheck
 	client.ProjectMember.Delete().Exec(ctx)   //nolint:errcheck
-	client.ApiToken.Delete().Exec(ctx)       //nolint:errcheck
-	client.ConfigSnapshot.Delete().Exec(ctx) //nolint:errcheck
-	client.Project.Delete().Exec(ctx)  //nolint:errcheck
+	client.ApiToken.Delete().Exec(ctx)        //nolint:errcheck
+	client.ConfigSnapshot.Delete().Exec(ctx)  //nolint:errcheck
+	client.Project.Delete().Exec(ctx)         //nolint:errcheck
 	client.User.Delete().Exec(ctx)            //nolint:errcheck
 
 	jwtCfg := config.JWTConfig{

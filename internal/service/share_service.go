@@ -154,7 +154,7 @@ func (s *ShareService) ListSharesByUser(ctx context.Context, userID uuid.UUID) (
 	}
 
 	// 收集所有项目 ID
-	var projectIDs []uuid.UUID
+	projectIDs := make([]uuid.UUID, 0, len(memberProjects))
 	for _, m := range memberProjects {
 		projectIDs = append(projectIDs, m.ProjectID)
 	}

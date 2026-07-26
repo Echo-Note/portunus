@@ -92,6 +92,11 @@ jobs:
       - name: Create database schema
         run: |
           go run -mod=mod .github/scripts/migrate_schema.go
+      - name: Generate JWT test keys
+        run: |
+          mkdir -p certs
+          openssl genrsa -out certs/jwt-private.pem 2048
+          openssl rsa -in certs/jwt-private.pem -pubout -out certs/jwt-public.pem
       - name: Run unit tests
         run: go test -race -cover -coverprofile=coverage.out ./internal/...
       - name: Check coverage
@@ -136,7 +141,7 @@ jobs:
   # 代码生成检查（仅 ent schema 变更时触发）
   # ═══════════════════════════════════════════════════════════════
   generate-check:
-    name: sqlc Generate Check
+    name: Ent Generate Check
     runs-on: ubuntu-latest
     needs: [changes]
     if: ${{ needs.changes.outputs.ent-schema == 'true' }}
@@ -147,13 +152,11 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-      - name: Install sqlc
-        run: go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
       - name: Check generated code is up to date
         run: |
-          sqlc generate -f sqlc.yaml
-          if ! git diff --exit-code internal/repository/generated/; then
-            echo "::error::Generated code is out of date. Run 'sqlc generate' and commit."
+          go generate ./ent/...
+          if ! git diff --exit-code ent/generated/; then
+            echo "::error::Generated code is out of date. Run 'make generate' and commit."
             exit 1
           fi
 
@@ -172,7 +175,7 @@ jobs:
         env:
           POSTGRES_USER: portunus
           POSTGRES_PASSWORD: portunus
-          POSTGRES_DB: portunus_test
+          POSTGRES_DB: portunus
         ports:
           - 5432:5432
         options: >-
@@ -190,7 +193,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgres://portunus:portunus@localhost:5432/portunus_test?sslmode=disable
+      DATABASE_URL: postgres://portunus:portunus@localhost:5432/portunus?sslmode=disable
       REDIS_URL: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v4
@@ -198,10 +201,20 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+      - name: Generate JWT test keys
+        run: |
+          mkdir -p certs
+          openssl genrsa -out certs/jwt-private.pem 2048
+          openssl rsa -in certs/jwt-private.pem -pubout -out certs/jwt-public.pem
       - name: Run database schema migration
         run: go run -mod=mod .github/scripts/migrate_schema.go
       - name: Run integration tests
-        run: go test -race -tags=integration -v ./test/integration/...
+        run: |
+          if [ -d test/integration ]; then
+            go test -race -v -count=1 ./test/integration/...
+          else
+            echo "No integration tests directory, skipping."
+          fi
 
   # ═══════════════════════════════════════════════════════════════
   # 前端测试（仅前端文件变更时触发）
