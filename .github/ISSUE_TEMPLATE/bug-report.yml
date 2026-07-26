@@ -1,0 +1,84 @@
+name: 🐛 Bug 报告
+description: 报告一个 bug，帮助改进项目
+title: "[Bug]: "
+labels: ["bug", "triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你花时间填写这个 Bug 报告！请尽可能提供详细信息。
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 清楚简洁地描述这个 bug 是什么
+      placeholder: |
+        例如：点击"创建域名"按钮后，页面无响应，控制台报错 ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 复现这个 bug 所需的步骤
+      placeholder: |
+        1. 进入 xx 页面
+        2. 点击 xx 按钮
+        3. 输入 xx 内容
+        4. 观察错误
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      description: 你期望发生什么
+      placeholder: 描述正常情况下应该发生什么
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 截图或日志
+      description: 如果有截图或错误日志，请粘贴在这里
+      placeholder: 拖拽截图或粘贴日志内容
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: 影响的模块
+      description: 哪个功能模块出了问题？
+      multiple: true
+      options:
+        - 域名管理 (Domain)
+        - 代理配置 (Proxy)
+        - 上游管理 (Upstream)
+        - 项目/成员管理 (Project/Member)
+        - 用户认证 (Auth)
+        - AI/MCP
+        - CI/CD
+        - 其他
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本信息
+      description: 你使用的 Portunus 版本或 commit SHA
+      placeholder: "v0.1.0 或 commit abc1234"
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 确认事项
+      options:
+        - label: 我已经搜索了已有的 Issues，确认没有重复
+          required: true
+        - label: 我已经提供了完整的复现步骤
+          required: true

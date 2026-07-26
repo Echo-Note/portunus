@@ -131,20 +131,20 @@ func (s *ApiTokenService) RevokeApiToken(ctx context.Context, tokenID uuid.UUID,
 		Only(ctx)
 	if err != nil {
 		if generated.IsNotFound(err) {
-			return nil, fmt.Errorf("%w: API Token 不存在", ErrNotFound)
+			return fmt.Errorf("%w: API Token 不存在", ErrNotFound)
 		}
-		return nil, fmt.Errorf("查询 API Token: %w", err)
+		return fmt.Errorf("查询 API Token: %w", err)
 	}
 
 	if at.Status != apitoken.StatusActive {
-		return nil, fmt.Errorf("%w: API Token 已失效", ErrNotFound)
+		return fmt.Errorf("%w: API Token 已失效", ErrNotFound)
 	}
 
 	_, err = at.Update().
 		SetStatus(apitoken.StatusRevoked).
 		Save(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("撤销 API Token: %w", err)
+		return fmt.Errorf("撤销 API Token: %w", err)
 	}
 
 	slog.InfoContext(ctx, "API Token 已撤销",

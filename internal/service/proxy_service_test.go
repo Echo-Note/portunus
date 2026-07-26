@@ -260,3 +260,110 @@ func TestNilInt(t *testing.T) {
 	assert.NotNil(t, nilInt(5))
 	assert.Equal(t, 5, *nilInt(5))
 }
+
+// TestProxyService_GetProxyConfigByDomainID 测试根据域名 ID 获取代理配置。
+func TestProxyService_GetProxyConfigByDomainID(t *testing.T) {
+	svc, domainSvc, projectSvc, userSvc, ctx := setupProxyService(t)
+	projectID := createTestProject(t, projectSvc, userSvc, ctx, "proxy-get", "proxy-get@test.com")
+
+	d, err := domainSvc.CreateDomain(ctx, CreateDomainInput{
+		ProjectID:  projectID,
+		DomainName: "proxy-get.example.com",
+	})
+	require.NoError(t, err)
+
+	pc, err := svc.CreateProxyConfig(ctx, CreateProxyConfigInput{
+		DomainID:            d.ID,
+		LbPolicy:            "round_robin",
+		HealthCheckURI:      "/health",
+		HealthCheckInterval: "30s",
+		Timeout:             "5s",
+	})
+	require.NoError(t, err)
+
+	got, err := svc.GetProxyConfigByDomainID(ctx, d.ID)
+	require.NoError(t, err)
+	assert.Equal(t, pc.ID, got.ID)
+	assert.Equal(t, proxyconfig.LbPolicyRoundRobin, got.LbPolicy)
+	assert.Equal(t, "/health", got.HealthCheckURI)
+}
+
+// TestProxyService_GetProxyConfigByDomainID_NotFound 测试获取不存在的代理配置。
+func TestProxyService_GetProxyConfigByDomainID_NotFound(t *testing.T) {
+	svc, _, _, _, ctx := setupProxyService(t)
+
+	_, err := svc.GetProxyConfigByDomainID(ctx, uuid.New())
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrNotFound)
+}
+
+// TestProxyService_UpdateProxyConfig 测试更新代理配置。
+func TestProxyService_UpdateProxyConfig(t *testing.T) {
+	svc, domainSvc, projectSvc, userSvc, ctx := setupProxyService(t)
+	projectID := createTestProject(t, projectSvc, userSvc, ctx, "proxy-update", "proxy-update@test.com")
+
+	d, err := domainSvc.CreateDomain(ctx, CreateDomainInput{
+		ProjectID:  projectID,
+		DomainName: "proxy-update.example.com",
+	})
+	require.NoError(t, err)
+
+	pc, err := svc.CreateProxyConfig(ctx, CreateProxyConfigInput{DomainID: d.ID})
+	require.NoError(t, err)
+
+	updated, err := svc.UpdateProxyConfig(ctx, pc.ID, UpdateProxyConfigInput{
+		LbPolicy:            "least_conn",
+		HealthCheckInterval: "60s",
+		Timeout:             "10s",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, proxyconfig.LbPolicyLeastConn, updated.LbPolicy)
+	assert.Equal(t, "60s", updated.HealthCheckInterval)
+	assert.Equal(t, "10s", updated.Timeout)
+}
+
+// TestProxyService_GetUpstreamStatus 测试获取上游健康状态。
+func TestProxyService_GetUpstreamStatus(t *testing.T) {
+	svc, domainSvc, projectSvc, userSvc, ctx := setupProxyService(t)
+	projectID := createTestProject(t, projectSvc, userSvc, ctx, "upstream-status", "upstream-status@test.com")
+
+	d, err := domainSvc.CreateDomain(ctx, CreateDomainInput{
+		ProjectID:  projectID,
+		DomainName: "upstream-status.example.com",
+	})
+	require.NoError(t, err)
+
+	pc, err := svc.CreateProxyConfig(ctx, CreateProxyConfigInput{DomainID: d.ID})
+	require.NoError(t, err)
+
+	_, err = svc.AddUpstream(ctx, AddUpstreamInput{
+		ProxyConfigID: pc.ID, DialAddress: "10.0.0.1:8080",
+	})
+	require.NoError(t, err)
+	_, err = svc.AddUpstream(ctx, AddUpstreamInput{
+		ProxyConfigID: pc.ID, DialAddress: "10.0.0.2:8080",
+	})
+	require.NoError(t, err)
+
+	statuses, err := svc.GetUpstreamStatus(ctx, d.ID)
+	require.NoError(t, err)
+	assert.Len(t, statuses, 2)
+	assert.Equal(t, "10.0.0.1:8080", statuses[0].DialAddress)
+	assert.True(t, statuses[0].Healthy)
+}
+
+// TestProxyService_GetUpstreamStatus_NoProxyConfig 测试无代理配置的域名。
+func TestProxyService_GetUpstreamStatus_NoProxyConfig(t *testing.T) {
+	svc, domainSvc, projectSvc, userSvc, ctx := setupProxyService(t)
+	projectID := createTestProject(t, projectSvc, userSvc, ctx, "upstream-nopc", "upstream-nopc@test.com")
+
+	d, err := domainSvc.CreateDomain(ctx, CreateDomainInput{
+		ProjectID:  projectID,
+		DomainName: "upstream-nopc.example.com",
+	})
+	require.NoError(t, err)
+
+	_, err = svc.GetUpstreamStatus(ctx, d.ID)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrNotFound)
+}

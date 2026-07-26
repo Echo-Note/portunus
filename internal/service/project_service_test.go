@@ -224,3 +224,109 @@ func TestProjectService_Create_Validation(t *testing.T) {
 		})
 	}
 }
+
+// TestProjectService_Update_Success 测试成功更新项目。
+func TestProjectService_Update_Success(t *testing.T) {
+	svc, userSvc, ctx := setupProjectService(t)
+	ownerID := createTestUser(t, userSvc, ctx, "update-owner@test.com")
+
+	p, err := svc.CreateProject(ctx, CreateProjectInput{
+		ProjectID: "update-proj", Name: "原始名称", Description: "原始描述", OwnerID: ownerID,
+	})
+	require.NoError(t, err)
+
+	updated, err := svc.UpdateProject(ctx, p.ID, UpdateProjectInput{
+		Name:        "新名称",
+		Description: "新描述",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "新名称", updated.Name)
+	assert.Equal(t, "新描述", updated.Description)
+}
+
+// TestProjectService_Update_NotFound 测试更新不存在的项目。
+func TestProjectService_Update_NotFound(t *testing.T) {
+	svc, _, ctx := setupProjectService(t)
+
+	_, err := svc.UpdateProject(ctx, uuid.New(), UpdateProjectInput{Name: "test"})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrNotFound)
+}
+
+// TestProjectService_Delete 测试删除项目。
+func TestProjectService_Delete(t *testing.T) {
+	svc, userSvc, ctx := setupProjectService(t)
+	ownerID := createTestUser(t, userSvc, ctx, "delete-owner@test.com")
+
+	p, err := svc.CreateProject(ctx, CreateProjectInput{
+		ProjectID: "delete-proj", Name: "待删除", OwnerID: ownerID,
+	})
+	require.NoError(t, err)
+
+	err = svc.DeleteProject(ctx, p.ID, ownerID)
+	require.NoError(t, err)
+
+	// 验证项目已标记为删除中
+	got, err := svc.GetProject(ctx, p.ID)
+	require.NoError(t, err)
+	assert.Equal(t, project.StatusDeleting, got.Status)
+}
+
+// TestProjectService_Suspend 测试冻结项目。
+func TestProjectService_Suspend(t *testing.T) {
+	svc, userSvc, ctx := setupProjectService(t)
+	ownerID := createTestUser(t, userSvc, ctx, "suspend-owner@test.com")
+
+	p, err := svc.CreateProject(ctx, CreateProjectInput{
+		ProjectID: "suspend-proj", Name: "待冻结", OwnerID: ownerID,
+	})
+	require.NoError(t, err)
+
+	err = svc.SuspendProject(ctx, p.ID, ownerID, "测试冻结")
+	require.NoError(t, err)
+
+	got, err := svc.GetProject(ctx, p.ID)
+	require.NoError(t, err)
+	assert.Equal(t, project.StatusSuspended, got.Status)
+}
+
+// TestProjectService_Reactivate 测试解冻项目。
+func TestProjectService_Reactivate(t *testing.T) {
+	svc, userSvc, ctx := setupProjectService(t)
+	ownerID := createTestUser(t, userSvc, ctx, "reactivate-owner@test.com")
+
+	p, err := svc.CreateProject(ctx, CreateProjectInput{
+		ProjectID: "reactivate-proj", Name: "待解冻", OwnerID: ownerID,
+	})
+	require.NoError(t, err)
+
+	err = svc.SuspendProject(ctx, p.ID, ownerID, "测试冻结")
+	require.NoError(t, err)
+
+	err = svc.ReactivateProject(ctx, p.ID, ownerID)
+	require.NoError(t, err)
+
+	got, err := svc.GetProject(ctx, p.ID)
+	require.NoError(t, err)
+	assert.Equal(t, project.StatusActive, got.Status)
+}
+
+// TestProjectService_Suspend_InvalidTransition 测试从非活跃状态冻结。
+func TestProjectService_Suspend_InvalidTransition(t *testing.T) {
+	svc, userSvc, ctx := setupProjectService(t)
+	ownerID := createTestUser(t, userSvc, ctx, "suspend-inv@test.com")
+
+	p, err := svc.CreateProject(ctx, CreateProjectInput{
+		ProjectID: "suspend-inv", Name: "冻结无效", OwnerID: ownerID,
+	})
+	require.NoError(t, err)
+
+	// 先冻结
+	err = svc.SuspendProject(ctx, p.ID, ownerID, "first")
+	require.NoError(t, err)
+
+	// 再次冻结应失败
+	err = svc.SuspendProject(ctx, p.ID, ownerID, "second")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidTransition)
+}

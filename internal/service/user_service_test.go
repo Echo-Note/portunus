@@ -289,3 +289,68 @@ func TestSplitN(t *testing.T) {
 		assert.Equal(t, tt.want, result)
 	}
 }
+
+// TestUserService_UpdateUser_Success 测试成功更新用户信息。
+func TestUserService_UpdateUser_Success(t *testing.T) {
+	svc, ctx := setupUserService(t)
+
+	result, err := svc.Register(ctx, RegisterInput{
+		Email:    "updateuser@test.com",
+		Password: "password123",
+	})
+	require.NoError(t, err)
+
+	u, err := svc.UpdateUser(ctx, result.UserID, UpdateUserInput{
+		Email: "updated@test.com",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "updated@test.com", u.Email)
+}
+
+// TestUserService_UpdateUser_Duplicate 测试更新为已存在的邮箱。
+func TestUserService_UpdateUser_Duplicate(t *testing.T) {
+	svc, ctx := setupUserService(t)
+
+	_, err := svc.Register(ctx, RegisterInput{
+		Email:    "existing@test.com",
+		Password: "password123",
+	})
+	require.NoError(t, err)
+
+	result, err := svc.Register(ctx, RegisterInput{
+		Email:    "another@test.com",
+		Password: "password123",
+	})
+	require.NoError(t, err)
+
+	_, err = svc.UpdateUser(ctx, result.UserID, UpdateUserInput{
+		Email: "existing@test.com",
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrDuplicate)
+}
+
+// TestUserService_UpdateUser_NotFound 测试更新不存在的用户。
+func TestUserService_UpdateUser_NotFound(t *testing.T) {
+	svc, ctx := setupUserService(t)
+
+	_, err := svc.UpdateUser(ctx, uuid.New(), UpdateUserInput{Email: "test@test.com"})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrNotFound)
+}
+
+// TestUserService_UpdateUser_Noop 测试无变更的更新。
+func TestUserService_UpdateUser_Noop(t *testing.T) {
+	svc, ctx := setupUserService(t)
+
+	result, err := svc.Register(ctx, RegisterInput{
+		Email:    "noop@test.com",
+		Password: "password123",
+	})
+	require.NoError(t, err)
+
+	// 不传任何变更
+	u, err := svc.UpdateUser(ctx, result.UserID, UpdateUserInput{})
+	require.NoError(t, err)
+	assert.Equal(t, "noop@test.com", u.Email)
+}

@@ -108,22 +108,25 @@ func (s *APITestSuite) SetupSuite() {
 	s.memberSvc = service.NewMemberService(client, stateMachine)
 	shareSvc := service.NewShareService(client, stateMachine)
 	auditSvc := service.NewAuditService(client)
+	apiTokenSvc := service.NewApiTokenService(client)
+	snapshotSvc := service.NewSnapshotService(client)
 
 	// 初始化 Handler
 	authH := handler.NewAuthHandler(s.userSvc)
 	projectH := handler.NewProjectHandler(projectSvc)
 	domainH := handler.NewDomainHandler(domainSvc)
-	proxyH := handler.NewProxyHandler(proxySvc)
+	proxyH := handler.NewProxyHandler(proxySvc, domainSvc)
 	memberH := handler.NewMemberHandler(s.memberSvc)
 	shareH := handler.NewShareHandler(shareSvc)
 	auditH := handler.NewAuditHandler(auditSvc)
+	snapshotH := handler.NewSnapshotHandler(snapshotSvc)
 
 	// 创建路由
 	s.router = gin.New()
 	api.RegisterRoutes(
 		s.router,
-		authH, projectH, domainH, proxyH, memberH, shareH, auditH,
-		s.userSvc, s.memberSvc,
+		authH, projectH, domainH, proxyH, memberH, shareH, auditH, snapshotH,
+		s.userSvc, s.memberSvc, apiTokenSvc,
 		6000, 1000, // 高限流值用于测试
 	)
 }

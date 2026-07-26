@@ -10,6 +10,7 @@ import (
 
 	"github.com/Echo-Note/portunus/ent/generated"
 	"github.com/Echo-Note/portunus/ent/generated/domainshare"
+	"github.com/Echo-Note/portunus/ent/generated/projectmember"
 )
 
 // ShareService 处理域名共享相关的业务逻辑。
@@ -133,6 +134,38 @@ func (s *ShareService) ListSharesByDomain(ctx context.Context, domainID uuid.UUI
 func (s *ShareService) ListSharesByTargetProject(ctx context.Context, projectID uuid.UUID) ([]*generated.DomainShare, error) {
 	shares, err := s.client.DomainShare.Query().
 		Where(domainshare.TargetProjectIDEQ(projectID), domainshare.StatusEQ(domainshare.StatusActive)).
+		WithDomain().
+		WithSourceProject().
+		All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("查询共享列表: %w", err)
+	}
+	return shares, nil
+}
+
+// ListSharesByUser 列出用户收到的所有域名共享（跨所有项目）。
+func (s *ShareService) ListSharesByUser(ctx context.Context, userID uuid.UUID) ([]*generated.DomainShare, error) {
+	// 获取用户参与的所有项目
+	memberProjects, err := s.client.ProjectMember.Query().
+		Where(projectmember.StatusEQ(projectmember.StatusActive), projectmember.UserIDEQ(userID)).
+		All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("查询用户项目: %w", err)
+	}
+
+	// 收集所有项目 ID
+	var projectIDs []uuid.UUID
+	for _, m := range memberProjects {
+		projectIDs = append(projectIDs, m.ProjectID)
+	}
+
+	if len(projectIDs) == 0 {
+		return nil, nil
+	}
+
+	// 查询这些项目作为目标收到的共享
+	shares, err := s.client.DomainShare.Query().
+		Where(domainshare.TargetProjectIDIn(projectIDs...), domainshare.StatusEQ(domainshare.StatusActive)).
 		WithDomain().
 		WithSourceProject().
 		All(ctx)

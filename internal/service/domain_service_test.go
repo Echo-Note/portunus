@@ -243,3 +243,72 @@ func TestDomainService_Create_Validation(t *testing.T) {
 		})
 	}
 }
+
+// TestDomainService_Update_Success 测试成功更新域名。
+func TestDomainService_Update_Success(t *testing.T) {
+	svc, projectSvc, userSvc, ctx := setupDomainService(t)
+	projectID := createTestProject(t, projectSvc, userSvc, ctx, "dom-update", "dom-update@test.com")
+
+	d, err := svc.CreateDomain(ctx, CreateDomainInput{
+		ProjectID:  projectID,
+		DomainName: "update.example.com",
+		SslEnabled: true,
+	})
+	require.NoError(t, err)
+
+	// 更新域名名称
+	sslDisabled := false
+	updated, err := svc.UpdateDomain(ctx, d.ID, UpdateDomainInput{
+		DomainName: "updated.example.com",
+		SSLEnabled: &sslDisabled,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "updated.example.com", updated.DomainName)
+	assert.False(t, updated.SslEnabled)
+}
+
+// TestDomainService_Update_Duplicate 测试更新为已存在的域名。
+func TestDomainService_Update_Duplicate(t *testing.T) {
+	svc, projectSvc, userSvc, ctx := setupDomainService(t)
+	projectID := createTestProject(t, projectSvc, userSvc, ctx, "dom-dup-update", "dom-dup-up@test.com")
+
+	_, err := svc.CreateDomain(ctx, CreateDomainInput{
+		ProjectID:  projectID,
+		DomainName: "existing.example.com",
+	})
+	require.NoError(t, err)
+
+	d, err := svc.CreateDomain(ctx, CreateDomainInput{
+		ProjectID:  projectID,
+		DomainName: "target.example.com",
+	})
+	require.NoError(t, err)
+
+	// 尝试更新为已存在的域名
+	_, err = svc.UpdateDomain(ctx, d.ID, UpdateDomainInput{
+		DomainName: "existing.example.com",
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrDuplicate)
+}
+
+// TestDomainService_Update_Deleting 测试更新正在删除的域名。
+func TestDomainService_Update_Deleting(t *testing.T) {
+	svc, projectSvc, userSvc, ctx := setupDomainService(t)
+	projectID := createTestProject(t, projectSvc, userSvc, ctx, "dom-del-update", "dom-del-up@test.com")
+
+	d, err := svc.CreateDomain(ctx, CreateDomainInput{
+		ProjectID:  projectID,
+		DomainName: "deleting-update.example.com",
+	})
+	require.NoError(t, err)
+
+	// 开始删除域名
+	err = svc.DeleteDomain(ctx, d.ID)
+	require.NoError(t, err)
+
+	// 尝试更新已删除的域名
+	_, err = svc.UpdateDomain(ctx, d.ID, UpdateDomainInput{DomainName: "new.example.com"})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidTransition)
+}

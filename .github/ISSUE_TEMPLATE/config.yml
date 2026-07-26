@@ -1,0 +1,10 @@
+# 所有 Issue 模板已禁用，请从以下模板中选择
+blank_issues_enabled: false
+
+contact_links:
+  - name: 💬 讨论 & 问题
+    url: https://github.com/Echo-Note/portunus/discussions
+    about: 使用 Discussions 进行提问、交流和分享想法
+  - name: 📖 项目文档
+    url: https://github.com/Echo-Note/portunus/tree/main/docs
+    about: 查看项目文档和架构设计

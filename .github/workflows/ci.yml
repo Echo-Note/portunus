@@ -283,16 +283,20 @@ jobs:
           append_if_failed "frontend-test"    "${RESULT_FRONTEND_TEST:-}"
           append_if_failed "build"            "${RESULT_BUILD:-}"
 
-          BRANCH="${{ github.ref_name }}"
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          COMMIT_SHA="${{ github.sha }}"
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
-          ACTOR="${{ github.actor }}"
           LABEL="ci-failure"
-          ISSUE_TITLE="CI Failure: ${{ github.workflow }} on ${BRANCH}"
 
           # 确保 label 存在
           gh label create "${LABEL}" --color "d73a4a" --description "CI 流水线自动创建的失败追踪" 2>/dev/null || true
+
+          # 准备模板变量
+          export BRANCH="${{ github.ref_name }}"
+          export RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          export COMMIT_SHORT="${{ github.sha }}"
+          COMMIT_SHORT="${COMMIT_SHORT:0:7}"
+          export COMMIT_MSG="${{ github.event.head_commit.message }}"
+          export ACTOR="${{ github.actor }}"
+          export FAILED_JOBS
+          ISSUE_TITLE="CI Failure: ${{ github.workflow }} on ${BRANCH}"
 
           # 查找是否已有同分支的未关闭 failure issue
           EXISTING_ISSUE=$(gh issue list \
@@ -309,7 +313,7 @@ jobs:
 
           | 项目 | 详情 |
           |------|------|
-          | **提交** | \`${COMMIT_SHA:0:7}\` — ${COMMIT_MSG} |
+          | **提交** | \`${COMMIT_SHORT}\` — ${COMMIT_MSG} |
           | **触发者** | @${ACTOR} |
           | **运行日志** | [查看详情](${RUN_URL}) |
 
@@ -317,25 +321,11 @@ jobs:
           EOF
           else
             echo "Creating new failure issue..."
-            gh issue create \
-              --title "${ISSUE_TITLE}" \
-              --label "${LABEL}" \
-              --body-file - <<EOF
-          ## CI 流水线失败
-
-          | 项目 | 详情 |
-          |------|------|
-          | **分支** | \`${BRANCH}\` |
-          | **提交** | \`${COMMIT_SHA:0:7}\` — ${COMMIT_MSG} |
-          | **触发者** | @${ACTOR} |
-          | **运行日志** | [查看详情](${RUN_URL}) |
-
-          ### 失败的 Job
-
-          $(printf '%b' "${FAILED_JOBS}")
-
-          > 🤖 此 Issue 由 CI 流水线自动创建。请查看运行日志定位问题。
-          EOF
+            envsubst < .github/ci-failure-issue-template.md | \
+              gh issue create \
+                --title "${ISSUE_TITLE}" \
+                --label "${LABEL}" \
+                --body-file -
           fi
 
   # ═══════════════════════════════════════════════════════════════

@@ -68,15 +68,18 @@ func main() {
 	memberSvc := service.NewMemberService(entClient, stateMachine)
 	shareSvc := service.NewShareService(entClient, stateMachine)
 	auditSvc := service.NewAuditService(entClient)
+	apiTokenSvc := service.NewApiTokenService(entClient)
+	snapshotSvc := service.NewSnapshotService(entClient)
 
 	// ── 6. 初始化 Handler 层 ──
 	authH := handler.NewAuthHandler(userSvc)
 	projectH := handler.NewProjectHandler(projectSvc)
 	domainH := handler.NewDomainHandler(domainSvc)
-	proxyH := handler.NewProxyHandler(proxySvc)
+	proxyH := handler.NewProxyHandler(proxySvc, domainSvc)
 	memberH := handler.NewMemberHandler(memberSvc)
 	shareH := handler.NewShareHandler(shareSvc)
 	auditH := handler.NewAuditHandler(auditSvc)
+	snapshotH := handler.NewSnapshotHandler(snapshotSvc)
 
 	// ── 7. 设置 Gin 路由 ──
 	gin.SetMode(cfg.Server.GinMode)
@@ -84,8 +87,8 @@ func main() {
 
 	api.RegisterRoutes(
 		router,
-		authH, projectH, domainH, proxyH, memberH, shareH, auditH,
-		userSvc, memberSvc,
+		authH, projectH, domainH, proxyH, memberH, shareH, auditH, snapshotH,
+		userSvc, memberSvc, apiTokenSvc,
 		cfg.RateLimit.RPM, cfg.RateLimit.Burst,
 	)
 

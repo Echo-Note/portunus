@@ -130,6 +130,63 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	respond(c, http.StatusOK, gin.H{"message": "已退出登录"})
 }
 
+// VerifyEmail 邮箱验证。POST /api/v1/auth/verify-email
+// 阶段 2 将实现完整的邮箱验证流程（发送邮件、验证令牌）。
+func (h *AuthHandler) VerifyEmail(c *gin.Context) {
+	var req struct {
+		Token string `json:"token" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "参数校验失败")
+		return
+	}
+
+	respond(c, http.StatusOK, gin.H{"message": "邮箱验证功能将在阶段 2 实现"})
+}
+
+// ForgotPassword 忘记密码。POST /api/v1/auth/forgot-password
+// 阶段 2 将实现发送重置密码邮件。
+func (h *AuthHandler) ForgotPassword(c *gin.Context) {
+	var req dto.ForgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "参数校验失败")
+		return
+	}
+
+	respond(c, http.StatusOK, gin.H{"message": "如果该邮箱已注册，重置邮件将发送到该邮箱"})
+}
+
+// ResetPassword 重置密码。POST /api/v1/auth/reset-password
+// 阶段 2 将实现完整的密码重置流程。
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var req dto.ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "参数校验失败")
+		return
+	}
+
+	respond(c, http.StatusOK, gin.H{"message": "密码重置功能将在阶段 2 实现"})
+}
+
+// OAuthRedirect OAuth 跳转。GET /api/v1/auth/oauth/:provider
+// 阶段 2 将实现 OAuth 2.0 流程（GitHub/Google）。
+func (h *AuthHandler) OAuthRedirect(c *gin.Context) {
+	provider := c.Param("provider")
+	respond(c, http.StatusOK, gin.H{"message": "OAuth " + provider + " 登录将在阶段 2 实现"})
+}
+
+// OAuthCallback OAuth 回调。GET /api/v1/auth/oauth/:provider/callback
+// 阶段 2 将实现 OAuth 2.0 回调处理。
+func (h *AuthHandler) OAuthCallback(c *gin.Context) {
+	provider := c.Param("provider")
+	code := c.Query("code")
+	respond(c, http.StatusOK, gin.H{
+		"message":  "OAuth 回调将在阶段 2 实现",
+		"provider": provider,
+		"code":     code,
+	})
+}
+
 // ── ProjectHandler ──
 
 // ProjectHandler 项目相关的 HTTP Handler。
@@ -458,23 +515,73 @@ func (h *DomainHandler) Delete(c *gin.Context) {
 	respond(c, http.StatusNoContent, nil)
 }
 
+// Update 更新域名配置。PATCH /api/v1/projects/:projectID/domains/:domainID
+func (h *DomainHandler) Update(c *gin.Context) {
+	domainID, err := uuid.Parse(c.Param("domainID"))
+	if err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的域名 ID")
+		return
+	}
+
+	var req dto.UpdateDomainRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "参数校验失败")
+		return
+	}
+
+	d, err := h.domainSvc.UpdateDomain(c.Request.Context(), domainID, service.UpdateDomainInput{
+		DomainName: req.DomainName,
+		SSLEnabled: req.SSLEnabled,
+	})
+	if err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	respond(c, http.StatusOK, dto.DomainResponse{
+		ID:         d.ID,
+		DomainName: d.DomainName,
+		Status:     string(d.Status),
+		SSLEnabled: d.SslEnabled,
+		CaddyID:    d.CaddyID,
+		CreatedAt:  d.CreatedAt,
+		UpdatedAt:  d.UpdatedAt,
+	})
+}
+
 // ── ProxyHandler ──
 
 // ProxyHandler 代理配置和上游相关的 HTTP Handler。
 type ProxyHandler struct {
-	proxySvc *service.ProxyService
+	proxySvc  *service.ProxyService
+	domainSvc *service.DomainService
 }
 
 // NewProxyHandler 创建代理 Handler 实例。
-func NewProxyHandler(proxySvc *service.ProxyService) *ProxyHandler {
-	return &ProxyHandler{proxySvc: proxySvc}
+func NewProxyHandler(proxySvc *service.ProxyService, domainSvc *service.DomainService) *ProxyHandler {
+	return &ProxyHandler{proxySvc: proxySvc, domainSvc: domainSvc}
+}
+
+// resolveProxyConfigID 从域名 ID 解析代理配置 ID。
+// 这是 ProxyHandler 中所有需要 proxyConfigID 的方法的公共辅助函数。
+func (h *ProxyHandler) resolveProxyConfigID(c *gin.Context) (uuid.UUID, error) {
+	domainID, err := uuid.Parse(c.Param("domainID"))
+	if err != nil {
+		return uuid.Nil, err
+	}
+	pc, err := h.proxySvc.GetProxyConfigByDomainID(c.Request.Context(), domainID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return pc.ID, nil
 }
 
 // AddUpstream 添加上游。POST /api/v1/projects/:projectID/domains/:domainID/proxy/upstreams
 func (h *ProxyHandler) AddUpstream(c *gin.Context) {
-	proxyConfigID, err := uuid.Parse(c.Param("proxyConfigID"))
+	proxyConfigID, err := h.resolveProxyConfigID(c)
 	if err != nil {
-		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的代理配置 ID")
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的域名 ID 或代理配置不存在")
 		return
 	}
 
@@ -507,9 +614,9 @@ func (h *ProxyHandler) AddUpstream(c *gin.Context) {
 
 // ListUpstreams 列出上游。GET /api/v1/projects/:projectID/domains/:domainID/proxy/upstreams
 func (h *ProxyHandler) ListUpstreams(c *gin.Context) {
-	proxyConfigID, err := uuid.Parse(c.Param("proxyConfigID"))
+	proxyConfigID, err := h.resolveProxyConfigID(c)
 	if err != nil {
-		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的代理配置 ID")
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的域名 ID 或代理配置不存在")
 		return
 	}
 
@@ -538,6 +645,105 @@ func (h *ProxyHandler) RemoveUpstream(c *gin.Context) {
 	}
 
 	respond(c, http.StatusNoContent, nil)
+}
+
+// GetProxyConfig 获取代理配置。GET /api/v1/projects/:projectID/domains/:domainID/proxy
+func (h *ProxyHandler) GetProxyConfig(c *gin.Context) {
+	domainID, err := uuid.Parse(c.Param("domainID"))
+	if err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的域名 ID")
+		return
+	}
+
+	pc, err := h.proxySvc.GetProxyConfigByDomainID(c.Request.Context(), domainID)
+	if err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	respond(c, http.StatusOK, dto.ProxyConfigResponse{
+		ID:                  pc.ID,
+		DomainID:            pc.DomainID,
+		LbPolicy:            string(pc.LbPolicy),
+		HealthCheckURI:      pc.HealthCheckURI,
+		HealthCheckInterval: pc.HealthCheckInterval,
+		Timeout:             pc.Timeout,
+		Status:              string(pc.Status),
+	})
+}
+
+// UpdateProxyConfig 更新代理配置。PATCH /api/v1/projects/:projectID/domains/:domainID/proxy
+func (h *ProxyHandler) UpdateProxyConfig(c *gin.Context) {
+	domainID, err := uuid.Parse(c.Param("domainID"))
+	if err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的域名 ID")
+		return
+	}
+
+	pc, err := h.proxySvc.GetProxyConfigByDomainID(c.Request.Context(), domainID)
+	if err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	var req dto.UpdateProxyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "参数校验失败")
+		return
+	}
+
+	pc, err = h.proxySvc.UpdateProxyConfig(c.Request.Context(), pc.ID, service.UpdateProxyConfigInput{
+		LbPolicy:            req.LbPolicy,
+		HealthCheckURI:      req.HealthCheckURI,
+		HealthCheckInterval: req.HealthCheckInterval,
+		Timeout:             req.Timeout,
+	})
+	if err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	respond(c, http.StatusOK, dto.ProxyConfigResponse{
+		ID:                  pc.ID,
+		DomainID:            pc.DomainID,
+		LbPolicy:            string(pc.LbPolicy),
+		HealthCheckURI:      pc.HealthCheckURI,
+		HealthCheckInterval: pc.HealthCheckInterval,
+		Timeout:             pc.Timeout,
+		Status:              string(pc.Status),
+	})
+}
+
+// GetUpstreamStatus 获取上游健康状态。GET /api/v1/projects/:projectID/domains/:domainID/status
+func (h *ProxyHandler) GetUpstreamStatus(c *gin.Context) {
+	domainID, err := uuid.Parse(c.Param("domainID"))
+	if err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的域名 ID")
+		return
+	}
+
+	statuses, err := h.proxySvc.GetUpstreamStatus(c.Request.Context(), domainID)
+	if err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	var items []dto.UpstreamStatusResponse
+	for _, s := range statuses {
+		items = append(items, dto.UpstreamStatusResponse{
+			UpstreamID:  s.UpstreamID,
+			DialAddress: s.DialAddress,
+			Status:      s.Status,
+			Healthy:     s.Healthy,
+			Fails:       s.Fails,
+		})
+	}
+
+	respond(c, http.StatusOK, gin.H{"items": items, "total": len(items)})
 }
 
 // ── MemberHandler ──
@@ -682,6 +888,93 @@ func (h *MemberHandler) ChangeRole(c *gin.Context) {
 	respond(c, http.StatusOK, gin.H{"message": "角色已变更"})
 }
 
+// GetInvitation 查看邀请详情。GET /api/v1/invitations/:token
+func (h *MemberHandler) GetInvitation(c *gin.Context) {
+	token := c.Param("token")
+	if token == "" {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "邀请令牌不能为空")
+		return
+	}
+
+	inv, err := h.memberSvc.GetInvitation(c.Request.Context(), token)
+	if err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	resp := dto.InvitationResponse{
+		ID:              inv.ID,
+		Email:           inv.Email,
+		Role:            string(inv.Role),
+		Status:          string(inv.Status),
+		InvitationToken: inv.InvitationToken,
+		ExpiresAt:       inv.ExpiresAt,
+		CreatedAt:       inv.CreatedAt,
+	}
+	if inv.Edges.Project != nil {
+		resp.ProjectName = inv.Edges.Project.Name
+		resp.ProjectID = inv.Edges.Project.ProjectID
+	}
+
+	respond(c, http.StatusOK, resp)
+}
+
+// AcceptInvitation 接受邀请。POST /api/v1/invitations/:token/accept
+func (h *MemberHandler) AcceptInvitation(c *gin.Context) {
+	token := c.Param("token")
+	if token == "" {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "邀请令牌不能为空")
+		return
+	}
+
+	userID, _ := middleware.GetUserID(c)
+
+	if err := h.memberSvc.AcceptInvitation(c.Request.Context(), token, userID); err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	respond(c, http.StatusOK, gin.H{"message": "已接受邀请"})
+}
+
+// RejectInvitation 拒绝邀请。POST /api/v1/invitations/:token/reject
+func (h *MemberHandler) RejectInvitation(c *gin.Context) {
+	token := c.Param("token")
+	if token == "" {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "邀请令牌不能为空")
+		return
+	}
+
+	if err := h.memberSvc.RejectInvitation(c.Request.Context(), token); err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	respond(c, http.StatusOK, gin.H{"message": "已拒绝邀请"})
+}
+
+// Leave 当前成员退出项目。POST /api/v1/projects/:projectID/members/me/leave
+func (h *MemberHandler) Leave(c *gin.Context) {
+	projectID, err := uuid.Parse(c.Param("projectID"))
+	if err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的项目 ID")
+		return
+	}
+
+	userID, _ := middleware.GetUserID(c)
+
+	if err := h.memberSvc.LeaveProject(c.Request.Context(), projectID, userID); err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	respond(c, http.StatusOK, gin.H{"message": "已退出项目"})
+}
+
 // ── ShareHandler ──
 
 // ShareHandler 域名共享相关的 HTTP Handler。
@@ -766,6 +1059,111 @@ func (h *ShareHandler) Revoke(c *gin.Context) {
 	}
 
 	respond(c, http.StatusNoContent, nil)
+}
+
+// ListReceived 列出当前用户收到的共享。GET /api/v1/shares
+func (h *ShareHandler) ListReceived(c *gin.Context) {
+	userID, _ := middleware.GetUserID(c)
+
+	// 先获取用户参与的所有项目，再查询每个项目收到的共享
+	shares, err := h.shareSvc.ListSharesByUser(c.Request.Context(), userID)
+	if err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	var items []dto.ShareResponse
+	for _, s := range shares {
+		var expiresAt *time.Time
+		if !s.ExpiresAt.IsZero() {
+			expiresAt = &s.ExpiresAt
+		}
+		items = append(items, dto.ShareResponse{
+			ID:              s.ID,
+			DomainID:        s.DomainID,
+			SourceProjectID: s.SourceProjectID,
+			TargetProjectID: s.TargetProjectID,
+			Permission:      string(s.Permission),
+			Status:          string(s.Status),
+			ExpiresAt:       expiresAt,
+			CreatedAt:       s.CreatedAt,
+		})
+	}
+
+	respond(c, http.StatusOK, gin.H{"items": items, "total": len(items)})
+}
+
+// AcceptShare 接受共享。POST /api/v1/shares/:shareID/accept
+func (h *ShareHandler) AcceptShare(c *gin.Context) {
+	shareID, err := uuid.Parse(c.Param("shareID"))
+	if err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的共享 ID")
+		return
+	}
+
+	if err := h.shareSvc.AcceptShare(c.Request.Context(), shareID); err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	respond(c, http.StatusOK, gin.H{"message": "已接受共享"})
+}
+
+// ── SnapshotHandler ──
+
+// SnapshotHandler 配置快照和回滚相关的 HTTP Handler。
+type SnapshotHandler struct {
+	snapshotSvc *service.SnapshotService
+}
+
+// NewSnapshotHandler 创建快照 Handler 实例。
+func NewSnapshotHandler(snapshotSvc *service.SnapshotService) *SnapshotHandler {
+	return &SnapshotHandler{snapshotSvc: snapshotSvc}
+}
+
+// List 列出项目的配置快照。GET /api/v1/projects/:projectID/snapshots
+func (h *SnapshotHandler) List(c *gin.Context) {
+	projectID, err := uuid.Parse(c.Param("projectID"))
+	if err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的项目 ID")
+		return
+	}
+
+	limit := 50
+	offset := 0
+	snapshots, err := h.snapshotSvc.ListSnapshots(c.Request.Context(), projectID, limit, offset)
+	if err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	respond(c, http.StatusOK, gin.H{"items": snapshots, "total": len(snapshots)})
+}
+
+// Rollback 回滚到指定版本的快照。POST /api/v1/projects/:projectID/snapshots/:version/rollback
+func (h *SnapshotHandler) Rollback(c *gin.Context) {
+	projectID, err := uuid.Parse(c.Param("projectID"))
+	if err != nil {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "无效的项目 ID")
+		return
+	}
+
+	version := c.Param("version")
+	if version == "" {
+		respondError(c, http.StatusBadRequest, dto.CodeBadRequest, "版本号不能为空")
+		return
+	}
+
+	if err := h.snapshotSvc.RollbackSnapshot(c.Request.Context(), projectID, version); err != nil {
+		code, status := mapError(err)
+		respondError(c, status, code, err.Error())
+		return
+	}
+
+	respond(c, http.StatusOK, gin.H{"message": "已回滚到版本 " + version})
 }
 
 // ── AuditHandler ──
