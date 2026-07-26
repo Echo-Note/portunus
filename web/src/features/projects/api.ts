@@ -2,8 +2,10 @@ import apiClient from '../../lib/api-client';
 import { CreateProjectInput, Project, UpdateProjectInput } from './types';
 
 export const projectsApi = {
-  list: (): Promise<Project[]> =>
-    apiClient.get('/projects'),
+  list: async (): Promise<Project[]> => {
+    const data = await apiClient.get('/projects') as { items: Project[]; total: number } | Project[];
+    return Array.isArray(data) ? data : (data as { items: Project[] }).items ?? [];
+  },
 
   get: (projectId: string): Promise<Project> =>
     apiClient.get(`/projects/${projectId}`),

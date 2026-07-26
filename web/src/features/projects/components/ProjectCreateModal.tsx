@@ -1,4 +1,4 @@
-import { Modal, Form, Input, Select } from 'antd';
+import { Modal, Form, Input } from 'antd';
 import { useCreateProject } from '../hooks';
 
 interface ProjectCreateModalProps {
@@ -7,9 +7,9 @@ interface ProjectCreateModalProps {
 }
 
 interface FormValues {
+  project_id: string;
   name: string;
   description?: string;
-  environment: 'development' | 'staging' | 'production';
 }
 
 /**
@@ -40,12 +40,18 @@ export function ProjectCreateModal({ open, onClose }: ProjectCreateModalProps) {
       width={520}
       destroyOnHidden
     >
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={handleSubmit}
-        initialValues={{ environment: 'development' }}
-      >
+      <Form form={form} layout="vertical" onFinish={handleSubmit}>
+        <Form.Item
+          name="project_id"
+          label="项目标识"
+          rules={[
+            { required: true, message: '请输入项目标识' },
+            { pattern: /^[a-zA-Z0-9_-]+$/, message: '仅允许字母、数字、下划线和连字符' },
+          ]}
+        >
+          <Input placeholder="my-project" />
+        </Form.Item>
+
         <Form.Item
           name="name"
           label="项目名称"
@@ -59,16 +65,6 @@ export function ProjectCreateModal({ open, onClose }: ProjectCreateModalProps) {
 
         <Form.Item name="description" label="项目描述">
           <Input.TextArea placeholder="项目描述（可选）" rows={3} />
-        </Form.Item>
-
-        <Form.Item name="environment" label="环境">
-          <Select
-            options={[
-              { value: 'development', label: '开发环境' },
-              { value: 'staging', label: '预发布环境' },
-              { value: 'production', label: '生产环境' },
-            ]}
-          />
         </Form.Item>
       </Form>
     </Modal>

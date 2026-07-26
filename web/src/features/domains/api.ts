@@ -1,9 +1,11 @@
 import apiClient from '../../lib/api-client';
-import { CreateDomainInput, Domain, UpdateDomainInput } from './types';
+import type { CreateDomainInput, Domain, UpdateDomainInput } from './types';
 
 export const domainsApi = {
-  list: (projectId: string): Promise<Domain[]> =>
-    apiClient.get(`/projects/${projectId}/domains`),
+  list: async (projectId: string): Promise<Domain[]> => {
+    const data = await apiClient.get(`/projects/${projectId}/domains`) as { items: Domain[]; total: number };
+    return data.items ?? [];
+  },
 
   get: (projectId: string, domainId: string): Promise<Domain> =>
     apiClient.get(`/projects/${projectId}/domains/${domainId}`),

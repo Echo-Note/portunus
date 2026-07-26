@@ -1,9 +1,11 @@
 import apiClient from '../../lib/api-client';
-import { ChangeRoleInput, InviteMemberInput, Member } from './types';
+import type { ChangeRoleInput, InviteMemberInput, Member } from './types';
 
 export const membersApi = {
-  list: (projectId: string): Promise<Member[]> =>
-    apiClient.get(`/projects/${projectId}/members`),
+  list: async (projectId: string): Promise<Member[]> => {
+    const data = await apiClient.get(`/projects/${projectId}/members`) as { items: Member[]; total: number };
+    return data.items ?? [];
+  },
 
   invite: (projectId: string, input: InviteMemberInput): Promise<Member> =>
     apiClient.post(`/projects/${projectId}/members`, input),

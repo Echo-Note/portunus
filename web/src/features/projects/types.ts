@@ -13,13 +13,12 @@ export interface Project {
 }
 
 export interface CreateProjectInput {
+  project_id: string;
   name: string;
   description?: string;
-  environment?: 'development' | 'staging' | 'production';
 }
 
 export interface UpdateProjectInput {
   name?: string;
   description?: string;
-  environment?: 'development' | 'staging' | 'production';
 }
